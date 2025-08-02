@@ -1,6 +1,7 @@
 import { Application, Assets } from 'pixi.js';
-import { PlayScene }    from './scenes/Play';
+import { MapMenuScene } from './scenes/MapMenuScene';
 import { SceneManager } from './scenes/SceneManager';
+import { getGameById } from './data/games';
 
 async function bootstrap() {
   const container = document.getElementById('game-container');
@@ -20,19 +21,37 @@ async function bootstrap() {
 
   // Load assets
   await Assets.load([
+    '/assets/sprites/map.png',
+
+    // Animal Finder
+    { alias: 'animals', src: '/assets/sprites/animalFinderSprites/animals.json' },
+    { alias: 'background', src: '/assets/sprites/animalFinderSprites/animalFinderBackground.png' },
+
+    // Cosmo Climb
+    { alias: 'cosmoClimbBackground', src: '/assets/sprites/cosmoClimbSprites/cosmoClimbBackground.png' },
+    { alias: 'cosmoClimbVisuals', src: '/assets/sprites/cosmoClimbSprites/cosmoClimbVisuals.json' },
   ]);
 
   const sceneManager = new SceneManager(app);
 
-  function showPlay() {
-    const play = new PlayScene(
+  function showMapMenu() {
+    const mapMenu = new MapMenuScene(
       app,
-      () => {}
+      (gameId) => {
+        const gameData = getGameById(gameId);
+        if (gameData && gameData.sceneClass) {
+          // Create and show the game scene
+          const gameScene = new gameData.sceneClass(app, showMapMenu);
+          sceneManager.changeScene(gameScene);
+        } else {
+          console.warn('Game not implemented yet:', gameId);
+        }
+      }
     );
-    sceneManager.changeScene(play);
+    sceneManager.changeScene(mapMenu);
   }
 
-  showPlay();
+  showMapMenu();
 }
 
 bootstrap();
