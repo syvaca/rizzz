@@ -14,6 +14,9 @@ export class MapMenuScene extends Container {
   private isDragging = false;
   private dragStart = { x: 0, y: 0 };
   private mapStart = { x: 0, y: 0 };
+  
+  // Zoom variables
+  private zoomLevel = 1.5; // zoom level on map
 
   constructor(
     private readonly app: Application,
@@ -33,6 +36,9 @@ export class MapMenuScene extends Container {
       // Create a container for the map and dots
       this.mapContainer = new Container();
       this.addChild(this.mapContainer);
+      
+      // Apply zoom to the map container
+      this.mapContainer.scale.set(this.zoomLevel);
       
       // Add map to container
       this.mapContainer.addChild(this.mapSprite);
@@ -114,9 +120,9 @@ export class MapMenuScene extends Container {
     let newX = this.mapStart.x + deltaX;
     let newY = this.mapStart.y + deltaY;
     
-    // Constrain the map to stay within bounds
-    const mapWidth = 1024;
-    const mapHeight = 1024;
+    // Constrain the map to stay within bounds (accounting for zoom)
+    const mapWidth = 1024 * this.zoomLevel;
+    const mapHeight = 1024 * this.zoomLevel;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     
@@ -149,9 +155,9 @@ export class MapMenuScene extends Container {
   }
 
   private centerMap() {
-    // Center the map in the viewport, but respect boundaries
-    const mapWidth = 1024;
-    const mapHeight = 1024;
+    // Center the map in the viewport, but respect boundaries (accounting for zoom)
+    const mapWidth = 1024 * this.zoomLevel;
+    const mapHeight = 1024 * this.zoomLevel;
     const viewportWidth = window.innerWidth;
     const viewportHeight = window.innerHeight;
     
