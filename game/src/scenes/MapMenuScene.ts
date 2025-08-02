@@ -3,10 +3,17 @@ import { GAMES, GameData } from '../data/games';
 import { GamePopup } from '../components/GamePopup';
 
 export class MapMenuScene extends Container {
+  private mapContainer!: Container;
   private mapSprite!: Sprite;
   private gameDots: Map<string, Graphics> = new Map();
+  private gameLabels: Map<string, Text> = new Map();
   private currentPopup: GamePopup | null = null;
   private outsideClickHandler: (event: any) => void;
+  
+  // Scrolling variables
+  private isDragging = false;
+  private dragStart = { x: 0, y: 0 };
+  private mapStart = { x: 0, y: 0 };
 
   constructor(
     private readonly app: Application,
@@ -15,6 +22,7 @@ export class MapMenuScene extends Container {
     super();
     this.outsideClickHandler = this.handleOutsideClick.bind(this);
     this.createMap();
+    this.setupScrolling();
   }
 
   private async createMap() {
@@ -22,16 +30,18 @@ export class MapMenuScene extends Container {
       const mapTexture = await Assets.load('/assets/sprites/map.png');
       this.mapSprite = new Sprite(mapTexture);
       
-      // Scale map to fill the entire viewport
-      const scaleX = window.innerWidth / this.mapSprite.width;
-      const scaleY = window.innerHeight / this.mapSprite.height;
-      const scale = Math.max(scaleX, scaleY); // Use the larger scale to fill entirely
+      // Create a container for the map and dots
+      this.mapContainer = new Container();
+      this.addChild(this.mapContainer);
       
-      this.mapSprite.scale.set(scale);
-      this.addChild(this.mapSprite);
+      // Add map to container
+      this.mapContainer.addChild(this.mapSprite);
       
       // Create game dots after map is loaded
       this.createGameDots();
+      
+      // Center the map initially
+      this.centerMap();
       
     } catch (error) {
       console.error('Could not load map texture:', error);
@@ -47,20 +57,21 @@ export class MapMenuScene extends Container {
         .lineStyle(2, 0xffffff)
         .drawCircle(0, 0, 8);
 
-      // Position dots relative to the scaled and positioned map
-      const mapScale = this.mapSprite.scale.x;
-      dot.x = this.mapSprite.x + (game.mapPosition.x * mapScale);
-      dot.y = this.mapSprite.y + (game.mapPosition.y * mapScale);
+      // Position dots at their map coordinates (not scaled)
+      dot.x = game.mapPosition.x;
+      dot.y = game.mapPosition.y;
       
       dot.eventMode = 'static';
       dot.cursor = 'pointer';
       dot.on('pointerdown', () => {
         console.log('Game dot clicked:', game.name);
-        this.showGamePopup(game, dot.x, dot.y);
+        // Convert dot position to screen coordinates for popup
+        const globalPos = this.mapContainer.toGlobal({ x: dot.x, y: dot.y });
+        this.showGamePopup(game, globalPos.x, globalPos.y);
       });
 
       this.gameDots.set(game.id, dot);
-      this.addChild(dot);
+      this.mapContainer.addChild(dot);
 
       // Add game name label
       const label = new Text(game.name, {
@@ -70,8 +81,48 @@ export class MapMenuScene extends Container {
       });
       label.x = dot.x + 15;
       label.y = dot.y - 8;
-      this.addChild(label);
+      this.mapContainer.addChild(label);
+      this.gameLabels.set(game.id, label);
     });
+  }
+
+  private setupScrolling() {
+    // Make the scene interactive for dragging
+    this.eventMode = 'static';
+    
+    // Mouse/touch events for dragging
+    this.on('pointerdown', this.onPointerDown.bind(this));
+    this.on('pointermove', this.onPointerMove.bind(this));
+    this.on('pointerup', this.onPointerUp.bind(this));
+    this.on('pointerupoutside', this.onPointerUp.bind(this));
+  }
+
+  private onPointerDown(event: any) {
+    this.isDragging = true;
+    this.dragStart.x = event.global.x;
+    this.dragStart.y = event.global.y;
+    this.mapStart.x = this.mapContainer.x;
+    this.mapStart.y = this.mapContainer.y;
+  }
+
+  private onPointerMove(event: any) {
+    if (!this.isDragging) return;
+    
+    const deltaX = event.global.x - this.dragStart.x;
+    const deltaY = event.global.y - this.dragStart.y;
+    
+    this.mapContainer.x = this.mapStart.x + deltaX;
+    this.mapContainer.y = this.mapStart.y + deltaY;
+  }
+
+  private onPointerUp() {
+    this.isDragging = false;
+  }
+
+  private centerMap() {
+    // Center the map in the viewport
+    this.mapContainer.x = (window.innerWidth - this.mapSprite.width) / 2;
+    this.mapContainer.y = (window.innerHeight - this.mapSprite.height) / 2;
   }
 
   private async showGamePopup(gameData: GameData, dotX: number, dotY: number) {
