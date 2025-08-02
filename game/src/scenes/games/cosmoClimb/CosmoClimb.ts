@@ -62,9 +62,10 @@ export class CosmoClimbScene extends Container {
   private solarStormSpeed: number = 0.7; // Base speed of storm movement
   private solarStormCatchupSpeed: number = 0.5; // Speed when catching up to alien
 
-  constructor(app: Application) {
+  constructor(app: Application, onGameOver?: () => void) {
     super();
     this.app = app;
+    this.onGameOver = onGameOver;
     // Calculate jumpVelocity based on jumpHeight and gravity
     this.jumpVelocity = -Math.sqrt(2 * this.gravity * this.jumpHeight);
     this.init();
@@ -595,18 +596,42 @@ export class CosmoClimbScene extends Container {
     overlay.drawRect(0, 0, this.app.renderer.width, this.app.renderer.height);
     overlay.endFill();
     this.addChild(overlay);
-    const text = new Text('You Win!', {
+    
+    const winText = new Text('You Win!', {
       fontFamily: 'Chewy', fontSize: 64, fill: 0xffffff, stroke: 0x000000, strokeThickness: 6, align: 'center'
     } as any);
-    text.anchor.set(0.5);
-    text.x = this.app.renderer.width / 2;
-    text.y = this.app.renderer.height / 2;
-    this.addChild(text);
-    setTimeout(() => {
+    winText.anchor.set(0.5);
+    winText.x = this.app.renderer.width / 2;
+    winText.y = this.app.renderer.height / 2 - 50;
+    this.addChild(winText);
+    
+    const continueText = new Text('Tap to Continue', {
+      fontFamily: 'Chewy', fontSize: 32, fill: 0xffffff, stroke: 0x000000, strokeThickness: 4, align: 'center'
+    } as any);
+    continueText.anchor.set(0.5);
+    continueText.x = this.app.renderer.width / 2;
+    continueText.y = this.app.renderer.height / 2 + 50;
+    this.addChild(continueText);
+    
+    // Make overlay clickable to restart
+    overlay.eventMode = 'static';
+    overlay.cursor = 'pointer';
+    overlay.on('pointerdown', () => {
       this.removeChild(overlay);
-      this.removeChild(text);
-      if (this.onGameOver) this.onGameOver();
-    }, 2000);
+      this.removeChild(winText);
+      this.removeChild(continueText);
+      this.restartGame();
+    });
+    
+    // Auto-restart after 3 seconds if not clicked
+    setTimeout(() => {
+      if (this.children.includes(overlay)) {
+        this.removeChild(overlay);
+        this.removeChild(winText);
+        this.removeChild(continueText);
+        this.restartGame();
+      }
+    }, 3000);
   }
 
   public resize() {
@@ -666,6 +691,46 @@ export class CosmoClimbScene extends Container {
       this.removeChild(this.startOverlay);
       this.startOverlay = undefined;
     }
+  }
+
+  private restartGame = () => {
+    // Reset all game state
+    this.isGameOver = false;
+    this.gameStarted = false;
+    this.score = 0;
+    this.highestY = 0;
+    this.alienWorldY = 0;
+    this.velocityY = 0;
+    this.velocityX = 0;
+    this.rocketActive = false;
+    this.rocketTimer = 0;
+    this.powercellActive = false;
+    this.touchDirection = 0;
+    this.keyboardTilt = 0;
+    this.usingKeyboard = false;
+    
+    // Clear all existing game objects
+    this.platforms.forEach(platform => {
+      this.removeChild(platform.sprite);
+      if (platform.powerupSprite) {
+        this.removeChild(platform.powerupSprite);
+      }
+    });
+    this.platforms = [];
+    
+    this.monsters.forEach(monster => {
+      this.removeChild(monster.sprite);
+    });
+    this.monsters = [];
+    this.allMonsters = [];
+    
+    // Remove alien and score text
+    if (this.alien) this.removeChild(this.alien);
+    if (this.scoreText) this.removeChild(this.scoreText);
+    if (this.solarStorm) this.removeChild(this.solarStorm);
+    
+    // Reinitialize the game
+    this.init();
   }
 
   private generateMonsters = () => {
