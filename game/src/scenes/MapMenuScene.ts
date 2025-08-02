@@ -111,8 +111,37 @@ export class MapMenuScene extends Container {
     const deltaX = event.global.x - this.dragStart.x;
     const deltaY = event.global.y - this.dragStart.y;
     
-    this.mapContainer.x = this.mapStart.x + deltaX;
-    this.mapContainer.y = this.mapStart.y + deltaY;
+    let newX = this.mapStart.x + deltaX;
+    let newY = this.mapStart.y + deltaY;
+    
+    // Constrain the map to stay within bounds
+    const mapWidth = 1024;
+    const mapHeight = 1024;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // Left boundary - map left edge should not go beyond viewport left
+    if (newX > 0) {
+      newX = 0;
+    }
+    
+    // Right boundary - map right edge should not go beyond viewport right
+    if (newX < viewportWidth - mapWidth) {
+      newX = viewportWidth - mapWidth;
+    }
+    
+    // Top boundary - map top edge should not go beyond viewport top
+    if (newY > 0) {
+      newY = 0;
+    }
+    
+    // Bottom boundary - map bottom edge should not go beyond viewport bottom
+    if (newY < viewportHeight - mapHeight) {
+      newY = viewportHeight - mapHeight;
+    }
+    
+    this.mapContainer.x = newX;
+    this.mapContainer.y = newY;
   }
 
   private onPointerUp() {
@@ -120,9 +149,31 @@ export class MapMenuScene extends Container {
   }
 
   private centerMap() {
-    // Center the map in the viewport
-    this.mapContainer.x = (window.innerWidth - this.mapSprite.width) / 2;
-    this.mapContainer.y = (window.innerHeight - this.mapSprite.height) / 2;
+    // Center the map in the viewport, but respect boundaries
+    const mapWidth = 1024;
+    const mapHeight = 1024;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    let centerX = (viewportWidth - mapWidth) / 2;
+    let centerY = (viewportHeight - mapHeight) / 2;
+    
+    // Apply the same boundary constraints
+    if (centerX > 0) {
+      centerX = 0;
+    }
+    if (centerX < viewportWidth - mapWidth) {
+      centerX = viewportWidth - mapWidth;
+    }
+    if (centerY > 0) {
+      centerY = 0;
+    }
+    if (centerY < viewportHeight - mapHeight) {
+      centerY = viewportHeight - mapHeight;
+    }
+    
+    this.mapContainer.x = centerX;
+    this.mapContainer.y = centerY;
   }
 
   private async showGamePopup(gameData: GameData, dotX: number, dotY: number) {

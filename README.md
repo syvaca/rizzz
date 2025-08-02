@@ -101,7 +101,7 @@ export const GAMES: GameData[] = [
 - **Scene Management**: Smooth transitions between menu and games
 - **Responsive**: Adapts to different screen sizes
 - **Back Navigation**: Easy return to menu from any game
-- **TODO: Draggable Map**: Users can pan around the map to explore
+- **Draggable Map**: Users can pan around the map to explore
 
 ## Running the Project
 ### Prerequisites
