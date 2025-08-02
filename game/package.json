@@ -1,0 +1,22 @@
+{
+    "name": "animal-finder",
+    "private": true,
+    "version": "0.1.0",
+    "type": "module",
+    "scripts": {
+      "dev": "vite --host 0.0.0.0 --port 5173",
+      "build": "vite build",
+      "preview": "vite preview --port 5000"
+    },
+    "dependencies": {
+      "firebase": "^11.9.1",
+      "pixi.js": "^8.0.0"
+    },
+    "devDependencies": {
+      "@types/gsap": "^3.0.0",
+      "@types/node": "^22.15.30",
+      "typescript": "^5.4.0",
+      "vite": "^5.0.0"
+    }
+  }
+  

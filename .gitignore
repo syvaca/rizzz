@@ -1,0 +1,20 @@
+# Node & npm
+node_modules/
+
+# Builds / dist
+/game/dist/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment files
+.env*
+
+# IDEs
+.idea/
+.vscode/
+
+# OS
+.DS_Store
