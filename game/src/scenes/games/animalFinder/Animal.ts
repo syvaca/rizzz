@@ -7,7 +7,7 @@ export enum AnimalType {
   LION = 'lion'
 }
 
-const TOP_UI_HEIGHT = 70;
+const TOP_UI_HEIGHT = 100; // Increased to prevent overlap with rubies at y=80
 const VELOCITY_SCALE = 0.7;
 
 export class Animal extends Sprite {

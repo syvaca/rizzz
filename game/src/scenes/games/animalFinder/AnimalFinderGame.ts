@@ -1,6 +1,7 @@
 import { Application, Container, Assets, Text, TextStyle, Graphics, Sprite, Texture } from 'pixi.js';
 import { Animal, AnimalType } from './Animal';
 import { ResizableScene } from '../../SceneManager';
+import { getUserCoins, updateUserCoins } from '../../../firebase';
 
 export class AnimalFinderGame extends Container implements ResizableScene {
   // overlay
@@ -24,6 +25,11 @@ export class AnimalFinderGame extends Container implements ResizableScene {
   private gameState: 'playing' | 'won' | 'lost' = 'playing';
   private background!: Graphics;
   private resultText!: Text;
+  
+  // Ruby display
+  private rubySprite!: Sprite;
+  private scoreText!: Text;
+  private currentScore: number = 0;
 
   constructor(
     private readonly app: Application,
@@ -157,6 +163,26 @@ export class AnimalFinderGame extends Container implements ResizableScene {
     this.gameTimer.y = 20;
     this.addChild(this.gameTimer);
 
+    // Create ruby image
+    const rubyTexture = await Assets.load('/assets/sprites/ruby.png');
+    this.rubySprite = new Sprite(rubyTexture);
+    this.rubySprite.width = 32;
+    this.rubySprite.height = 32;
+    this.rubySprite.x = 20;
+    this.rubySprite.y = 80; // Position under timer (timer is at y=20, so position at y=80)
+    this.addChild(this.rubySprite);
+    
+    // Create score text
+    this.scoreText = new Text(`${this.currentScore}`, {
+      fontFamily: 'Hanalei Fill',
+      fontSize: 32,
+      fill: 0xEBBD72,
+      stroke: 0x000000
+    });
+    this.scoreText.x = 60; // Position next to ruby sprite
+    this.scoreText.y = 75; // Align with ruby sprite
+    this.addChild(this.scoreText);
+
     this.createPoster();
 
     // Result text (hidden initially)
@@ -239,7 +265,7 @@ export class AnimalFinderGame extends Container implements ResizableScene {
   
   private lastTime: number = 0;
   
-  private gameLoop = () => {
+  private gameLoop = async () => {
     if (this.gameState !== 'playing') return;
 
     // Update timer using actual delta time
@@ -256,7 +282,7 @@ export class AnimalFinderGame extends Container implements ResizableScene {
 
     // Check if time ran out
     if (this.timeRemaining <= 0) {
-      this.endGame(false);
+      await this.endGame(false);
       return;
     }
 
@@ -264,7 +290,7 @@ export class AnimalFinderGame extends Container implements ResizableScene {
     this.animals.forEach(animal => animal.update(1));
   }
 
-  private onAnimalClick(animal: Animal) {
+  private async onAnimalClick(animal: Animal) {
     if (this.gameState !== 'playing') return;
 
     if (animal.isWanted) {
@@ -272,7 +298,7 @@ export class AnimalFinderGame extends Container implements ResizableScene {
       setTimeout(() => {
         animal.tint = 0xFFFFFF; // Reset to normal
       }, 500);
-      this.endGame(true);
+      await this.endGame(true);
     } else {
       // Wrong animal clicked - maybe add some feedback
       animal.tint = 0xCC523F; // Flash red
@@ -282,7 +308,7 @@ export class AnimalFinderGame extends Container implements ResizableScene {
     }
   }
 
-  private endGame(won: boolean) {
+  private async endGame(won: boolean) {
     this.gameState = won ? 'won' : 'lost';
     
     this.resultText.text = won ? 'YOU WIN!' : 'TIME\'S UP! YOU LOSE!';
@@ -294,12 +320,26 @@ export class AnimalFinderGame extends Container implements ResizableScene {
     this.app.ticker.remove(this.gameLoop);
 
     if (won) {
+      // Add 15 points for winning the round
+      this.currentScore += 15;
+      this.scoreText.text = `${this.currentScore}`;
       this.round++;
       // Add restart functionality for win
       setTimeout(() => {
         this.restartGame();
       }, 3000);
     } else {
+      // Game over - add score to user's rubies
+      if (this.currentScore > 0) {
+        try {
+          const currentCoins = await getUserCoins(this.userId);
+          await updateUserCoins(this.userId, currentCoins + this.currentScore);
+          console.log(`Added ${this.currentScore} points to user's rubies. New total: ${currentCoins + this.currentScore}`);
+        } catch (error) {
+          console.error('Failed to update user coins:', error);
+        }
+      }
+      
       // Remove all animals except the wanted animal
       const wantedAnimal = this.animals.find(a => a.isWanted);
       this.animals.forEach(animal => {
