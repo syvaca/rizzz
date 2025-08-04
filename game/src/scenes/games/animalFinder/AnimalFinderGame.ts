@@ -27,7 +27,8 @@ export class AnimalFinderGame extends Container implements ResizableScene {
 
   constructor(
     private readonly app: Application,
-    private readonly onStart: () => void
+    private readonly userId: string,
+    private readonly onStart: () => void,
   ) {
     super();
     this.sortableChildren = true;

@@ -1,6 +1,7 @@
 import { Application, Container, Sprite, Graphics, Assets, Text } from 'pixi.js';
 import { GAMES, GameData } from '../data/games';
 import { GamePopup } from '../components/GamePopup';
+import { getUserCoins, subscribeToUser } from "../firebase";
 
 export class MapMenuScene extends Container {
   private mapContainer!: Container;
@@ -9,6 +10,11 @@ export class MapMenuScene extends Container {
   private gameLabels: Map<string, Text> = new Map();
   private currentPopup: GamePopup | null = null;
   private outsideClickHandler: (event: any) => void;
+  
+  // Coin display variables
+  private coinContainer!: Container;
+  private rubySprite!: Sprite;
+  private coinText!: Text;
   
   // Scrolling variables
   private isDragging = false;
@@ -20,12 +26,14 @@ export class MapMenuScene extends Container {
 
   constructor(
     private readonly app: Application,
-    private readonly onGameStart: (gameId: string) => void
+    private readonly onGameStart: (gameId: string) => void,
+    private readonly userId: string
   ) {
     super();
     this.outsideClickHandler = this.handleOutsideClick.bind(this);
     this.createMap();
     this.setupScrolling();
+    this.createCoinDisplay();
   }
 
   private async createMap() {
@@ -51,6 +59,43 @@ export class MapMenuScene extends Container {
       
     } catch (error) {
       console.error('Could not load map texture:', error);
+    }
+  }
+
+  private async createCoinDisplay() {
+    try {
+      // Create container for coin display
+      this.coinContainer = new Container();
+      
+      // Load ruby sprite
+      const rubyTexture = await Assets.load('/assets/sprites/ruby.png');
+      this.rubySprite = new Sprite(rubyTexture);
+      this.rubySprite.width = 32;
+      this.rubySprite.height = 32;
+      this.rubySprite.x = 0;
+      this.rubySprite.y = 0;
+      this.coinContainer.addChild(this.rubySprite);
+      
+      // Create coin text
+      const coins = await getUserCoins(this.userId);
+      this.coinText = new Text(`${coins}`, {
+        fontFamily: 'Montserrat',
+        fontSize: 24,
+        fill: 0xffffff,
+        fontWeight: 'bold'
+      });
+      this.coinText.x = 40;
+      this.coinText.y = 5;
+      this.coinContainer.addChild(this.coinText);
+      
+      // Position in upper right corner
+      this.coinContainer.x = this.app.renderer.width - 80;
+      this.coinContainer.y = 20;
+      
+      this.addChild(this.coinContainer);
+      
+    } catch (error) {
+      console.error('Could not create coin display:', error);
     }
   }
 
@@ -242,6 +287,12 @@ export class MapMenuScene extends Container {
     // Reposition popup if it exists
     if (this.currentPopup) {
       this.currentPopup.resize();
+    }
+    
+    // Reposition coin display in upper right corner
+    if (this.coinContainer) {
+      this.coinContainer.x = this.app.renderer.width - 80;
+      this.coinContainer.y = 20;
     }
   }
 } 

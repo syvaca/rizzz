@@ -62,7 +62,9 @@ export class CosmoClimbScene extends Container {
   private solarStormSpeed: number = 0.7; // Base speed of storm movement
   private solarStormCatchupSpeed: number = 0.5; // Speed when catching up to alien
 
-  constructor(app: Application, onGameOver?: () => void) {
+  constructor(app: Application,
+    private readonly userId: string,
+    onGameOver?: () => void) {
     super();
     this.app = app;
     this.onGameOver = onGameOver;

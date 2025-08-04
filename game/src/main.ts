@@ -28,6 +28,7 @@ async function bootstrap() {
   // Load assets
   await Assets.load([
     '/assets/sprites/map.png',
+    '/assets/sprites/ruby.png',
 
     // Animal Finder
     { alias: 'animals', src: '/assets/sprites/animalFinderSprites/animals.json' },
@@ -47,12 +48,13 @@ async function bootstrap() {
         const gameData = getGameById(gameId);
         if (gameData && gameData.sceneClass) {
           // Create and show the game scene
-          const gameScene = new gameData.sceneClass(app, showMapMenu);
+          const gameScene = new gameData.sceneClass(app, user_id, showMapMenu);
           sceneManager.changeScene(gameScene);
         } else {
           console.warn('Game not implemented yet:', gameId);
         }
-      }
+      },
+      user_id
     );
     sceneManager.changeScene(mapMenu);
   }
