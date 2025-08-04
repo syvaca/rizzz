@@ -42,7 +42,7 @@ import { Application } from 'pixi.js';
 import { GameScene } from './GameTemplate';
 
 export class YourGameName extends GameScene {
-  constructor(app: Application, onBackToMenu: () => void) {
+  constructor(app: Application, private readonly userId: string, onBackToMenu: () => void) {
     super(app, onBackToMenu, 'Your Game Name');
     this.initializeGame();
   }
