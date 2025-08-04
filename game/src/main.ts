@@ -1,6 +1,8 @@
+import "./firebase"; 
 import { Application, Assets } from 'pixi.js';
 import { MapMenuScene } from './scenes/MapMenuScene';
 import { SceneManager } from './scenes/SceneManager';
+import { initAnonymousUser } from "./firebase"; 
 import { getGameById } from './data/games';
 
 async function bootstrap() {
@@ -18,6 +20,10 @@ async function bootstrap() {
   });
 
   container.appendChild(app.view);
+
+  // get the user ID, or create a new anonymous user
+  const user_id = await initAnonymousUser();
+  console.log("Logged in as:", user_id);
 
   // Load assets
   await Assets.load([
