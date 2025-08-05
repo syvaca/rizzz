@@ -22,7 +22,7 @@ export class MapMenuScene extends Container {
   private mapStart = { x: 0, y: 0 };
   
   // Zoom variables
-  private zoomLevel = 1.5; // zoom level on map
+  private zoomLevel = 1; // zoom level on map (will be calculated dynamically)
 
   constructor(
     private readonly app: Application,
@@ -31,9 +31,51 @@ export class MapMenuScene extends Container {
   ) {
     super();
     this.outsideClickHandler = this.handleOutsideClick.bind(this);
+    this.calculateZoomLevel();
     this.createMap();
     this.setupScrolling();
     this.createCoinDisplay();
+    this.setupResizeHandler();
+  }
+
+  private calculateZoomLevel() {
+    const mapWidth = 1024;
+    const mapHeight = 1024;
+    
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    const zoomForWidth = viewportWidth / mapWidth;
+    const zoomForHeight = viewportHeight / mapHeight;
+
+    this.zoomLevel = Math.max(zoomForWidth, zoomForHeight);
+    
+    this.zoomLevel = Math.max(this.zoomLevel, 0.1);
+  }
+
+  private setupResizeHandler() {
+    // Add window resize event listener
+    window.addEventListener('resize', this.onResize.bind(this));
+  }
+
+  private onResize() {
+    // Recalculate zoom level for new screen size
+    const oldZoomLevel = this.zoomLevel;
+    this.calculateZoomLevel();
+    
+    // Update map container scale if it exists
+    if (this.mapContainer) {
+      this.mapContainer.scale.set(this.zoomLevel);
+      
+      // Recenter the map to maintain a good position after resize
+      this.centerMap();
+      
+      // Update coin display position
+      if (this.coinContainer) {
+        this.coinContainer.x = window.innerWidth - 80;
+        this.coinContainer.y = 20;
+      }
+    }
   }
 
   private async createMap() {
@@ -168,34 +210,11 @@ export class MapMenuScene extends Container {
     let newX = this.mapStart.x + deltaX;
     let newY = this.mapStart.y + deltaY;
     
-    // Constrain the map to stay within bounds (accounting for zoom)
-    const mapWidth = 1024 * this.zoomLevel;
-    const mapHeight = 1024 * this.zoomLevel;
-    const viewportWidth = window.innerWidth;
-    const viewportHeight = window.innerHeight;
+    // Apply the same boundary constraints as wheel scrolling
+    const constrainedPosition = this.constrainMapPosition(newX, newY);
     
-    // Left boundary - map left edge should not go beyond viewport left
-    if (newX > 0) {
-      newX = 0;
-    }
-    
-    // Right boundary - map right edge should not go beyond viewport right
-    if (newX < viewportWidth - mapWidth) {
-      newX = viewportWidth - mapWidth;
-    }
-    
-    // Top boundary - map top edge should not go beyond viewport top
-    if (newY > 0) {
-      newY = 0;
-    }
-    
-    // Bottom boundary - map bottom edge should not go beyond viewport bottom
-    if (newY < viewportHeight - mapHeight) {
-      newY = viewportHeight - mapHeight;
-    }
-    
-    this.mapContainer.x = newX;
-    this.mapContainer.y = newY;
+    this.mapContainer.x = constrainedPosition.x;
+    this.mapContainer.y = constrainedPosition.y;
   }
 
   private onPointerUp() {
@@ -226,6 +245,13 @@ export class MapMenuScene extends Container {
     let newY = this.mapContainer.y + scrollY;
     
     // Apply the same boundary constraints as drag scrolling
+    const constrainedPosition = this.constrainMapPosition(newX, newY);
+    
+    this.mapContainer.x = constrainedPosition.x;
+    this.mapContainer.y = constrainedPosition.y;
+  }
+
+  private constrainMapPosition(newX: number, newY: number): { x: number, y: number } {
     // Constrain the map to stay within bounds (accounting for zoom)
     const mapWidth = 1024 * this.zoomLevel;
     const mapHeight = 1024 * this.zoomLevel;
@@ -252,8 +278,7 @@ export class MapMenuScene extends Container {
       newY = viewportHeight - mapHeight;
     }
     
-    this.mapContainer.x = newX;
-    this.mapContainer.y = newY;
+    return { x: newX, y: newY };
   }
 
   private centerMap() {
