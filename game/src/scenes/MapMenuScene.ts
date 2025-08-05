@@ -146,6 +146,9 @@ export class MapMenuScene extends Container {
     this.on('pointermove', this.onPointerMove.bind(this));
     this.on('pointerup', this.onPointerUp.bind(this));
     this.on('pointerupoutside', this.onPointerUp.bind(this));
+    
+    // Add wheel/touchpad scrolling support
+    this.setupWheelScrolling();
   }
 
   private onPointerDown(event: any) {
@@ -197,6 +200,60 @@ export class MapMenuScene extends Container {
 
   private onPointerUp() {
     this.isDragging = false;
+  }
+
+  private setupWheelScrolling() {
+    // Add wheel event listener to the canvas element
+    const canvas = this.app.canvas;
+    canvas.addEventListener('wheel', this.onWheel.bind(this), { passive: false });
+  }
+
+  private onWheel(event: WheelEvent) {
+    // Prevent default scrolling behavior
+    event.preventDefault();
+    
+    // Get scroll delta (normalize for different devices)
+    const deltaX = event.deltaX;
+    const deltaY = event.deltaY;
+    
+    // Apply scroll sensitivity (adjust as needed)
+    const scrollSensitivity = 1.0;
+    const scrollX = -deltaX * scrollSensitivity;
+    const scrollY = -deltaY * scrollSensitivity;
+    
+    // Calculate new position
+    let newX = this.mapContainer.x + scrollX;
+    let newY = this.mapContainer.y + scrollY;
+    
+    // Apply the same boundary constraints as drag scrolling
+    // Constrain the map to stay within bounds (accounting for zoom)
+    const mapWidth = 1024 * this.zoomLevel;
+    const mapHeight = 1024 * this.zoomLevel;
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // Left boundary - map left edge should not go beyond viewport left
+    if (newX > 0) {
+      newX = 0;
+    }
+    
+    // Right boundary - map right edge should not go beyond viewport right
+    if (newX < viewportWidth - mapWidth) {
+      newX = viewportWidth - mapWidth;
+    }
+    
+    // Top boundary - map top edge should not go beyond viewport top
+    if (newY > 0) {
+      newY = 0;
+    }
+    
+    // Bottom boundary - map bottom edge should not go beyond viewport bottom
+    if (newY < viewportHeight - mapHeight) {
+      newY = viewportHeight - mapHeight;
+    }
+    
+    this.mapContainer.x = newX;
+    this.mapContainer.y = newY;
   }
 
   private centerMap() {
