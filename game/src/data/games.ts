@@ -1,5 +1,6 @@
 import { AnimalFinderGame } from '../scenes/games/animalFinder/AnimalFinderGame';
 import { CosmoClimbScene } from '../scenes/games/cosmoClimb/CosmoClimb';
+import { FloatFrenzy } from '../scenes/games/floatFrenzy/FloatFrenzy';
 
 export interface GameData {
   id: string;
@@ -27,13 +28,21 @@ export const GAMES: GameData[] = [
     mapPosition: { x: 100, y: 570 },
     sceneClass: AnimalFinderGame
   },
+  // {
+  //   id: 'ocean-explorer',
+  //   name: 'Ocean Explorer',
+  //   description: 'Dive deep into the ocean to discover treasures',
+  //   photo: '/assets/game-thumbnails/ocean-explorer.png',
+  //   mapPosition: { x: 20, y: 80 },
+  //   sceneClass: null
+  // },
   {
-    id: 'ocean-explorer',
-    name: 'Ocean Explorer',
-    description: 'Dive deep into the ocean to discover treasures',
-    photo: '/assets/game-thumbnails/ocean-explorer.png',
-    mapPosition: { x: 20, y: 80 },
-    sceneClass: null
+    id: 'float-frenzy',
+    name: 'Float Frenzy',
+    description: 'Float through the ocean, avoid bombs and collect powerups',
+    photo: '/assets/game-thumbnails/animalFinderLogo.png',
+    mapPosition: { x: 20, y: 80 }, // edit to be where you want it on the map
+    sceneClass: FloatFrenzy
   }
 ];
 

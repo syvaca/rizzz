@@ -84,7 +84,7 @@ export class MapMenuScene extends Container {
         fill: 0xffffff,
         fontWeight: 'bold'
       });
-      this.coinText.x = 40;
+      this.coinText.x = 10;
       this.coinText.y = 5;
       this.coinContainer.addChild(this.coinText);
       

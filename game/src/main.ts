@@ -37,6 +37,10 @@ async function bootstrap() {
     // Cosmo Climb
     { alias: 'cosmoClimbBackground', src: '/assets/sprites/cosmoClimbSprites/cosmoClimbBackground.png' },
     { alias: 'cosmoClimbVisuals', src: '/assets/sprites/cosmoClimbSprites/cosmoClimbVisuals.json' },
+
+    // Float Frenzy
+    { alias: 'floatFrenzyVisuals', src: '/assets/sprites/floatFrenzySprites/floatFrenzyVisuals.json' },
+    { alias: 'floatFrenzyBackground', src: '/assets/sprites/floatFrenzySprites/floatFrenzyBackground.png' },
   ]);
 
   const sceneManager = new SceneManager(app);
