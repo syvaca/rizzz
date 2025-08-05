@@ -40,10 +40,90 @@
 				"h": 1070
 			}
 		},
-		"monster-1.png": {
+		"asteroid-1.png": {
+			"frame": {
+				"x": 1635,
+				"y": 1,
+				"w": 600,
+				"h": 593
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 600,
+				"h": 593
+			},
+			"sourceSize": {
+				"w": 600,
+				"h": 593
+			}
+		},
+		"asteroid-2.png": {
+			"frame": {
+				"x": 1635,
+				"y": 596,
+				"w": 600,
+				"h": 595
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 600,
+				"h": 595
+			},
+			"sourceSize": {
+				"w": 600,
+				"h": 595
+			}
+		},
+		"asteroid-3.png": {
 			"frame": {
 				"x": 1,
-				"y": 1073,
+				"y": 1193,
+				"w": 567,
+				"h": 597
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 567,
+				"h": 597
+			},
+			"sourceSize": {
+				"w": 567,
+				"h": 597
+			}
+		},
+		"black-hole.png": {
+			"frame": {
+				"x": 570,
+				"y": 1193,
+				"w": 691,
+				"h": 654
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 691,
+				"h": 654
+			},
+			"sourceSize": {
+				"w": 691,
+				"h": 654
+			}
+		},
+		"monster-1.png": {
+			"frame": {
+				"x": 1263,
+				"y": 1193,
 				"w": 431,
 				"h": 447
 			},
@@ -62,8 +142,8 @@
 		},
 		"monster-2.png": {
 			"frame": {
-				"x": 434,
-				"y": 1073,
+				"x": 1696,
+				"y": 1193,
 				"w": 508,
 				"h": 512
 			},
@@ -82,8 +162,8 @@
 		},
 		"monster-3.png": {
 			"frame": {
-				"x": 944,
-				"y": 1073,
+				"x": 1263,
+				"y": 1707,
 				"w": 498,
 				"h": 456
 			},
@@ -98,91 +178,11 @@
 			"sourceSize": {
 				"w": 498,
 				"h": 456
-			}
-		},
-		"platform-1.png": {
-			"frame": {
-				"x": 1635,
-				"y": 1,
-				"w": 391,
-				"h": 89
-			},
-			"rotated": false,
-			"trimmed": false,
-			"spriteSourceSize": {
-				"x": 0,
-				"y": 0,
-				"w": 391,
-				"h": 89
-			},
-			"sourceSize": {
-				"w": 391,
-				"h": 89
-			}
-		},
-		"platform-2.png": {
-			"frame": {
-				"x": 1635,
-				"y": 92,
-				"w": 325,
-				"h": 92
-			},
-			"rotated": false,
-			"trimmed": false,
-			"spriteSourceSize": {
-				"x": 0,
-				"y": 0,
-				"w": 325,
-				"h": 92
-			},
-			"sourceSize": {
-				"w": 325,
-				"h": 92
-			}
-		},
-		"platform-3.png": {
-			"frame": {
-				"x": 1635,
-				"y": 186,
-				"w": 347,
-				"h": 102
-			},
-			"rotated": false,
-			"trimmed": false,
-			"spriteSourceSize": {
-				"x": 0,
-				"y": 0,
-				"w": 347,
-				"h": 102
-			},
-			"sourceSize": {
-				"w": 347,
-				"h": 102
-			}
-		},
-		"platform-broken.png": {
-			"frame": {
-				"x": 1444,
-				"y": 1073,
-				"w": 447,
-				"h": 118
-			},
-			"rotated": false,
-			"trimmed": false,
-			"spriteSourceSize": {
-				"x": 0,
-				"y": 0,
-				"w": 447,
-				"h": 118
-			},
-			"sourceSize": {
-				"w": 447,
-				"h": 118
 			}
 		},
 		"powercell.png": {
 			"frame": {
-				"x": 2028,
+				"x": 2237,
 				"y": 1,
 				"w": 548,
 				"h": 868
@@ -202,7 +202,7 @@
 		},
 		"rocket-off.png": {
 			"frame": {
-				"x": 1893,
+				"x": 2237,
 				"y": 871,
 				"w": 272,
 				"h": 438
@@ -222,7 +222,7 @@
 		},
 		"rocket-on.png": {
 			"frame": {
-				"x": 2167,
+				"x": 2511,
 				"y": 871,
 				"w": 272,
 				"h": 572
@@ -242,8 +242,8 @@
 		},
 		"solar-storm.png": {
 			"frame": {
-				"x": 1444,
-				"y": 1445,
+				"x": 1763,
+				"y": 1707,
 				"w": 1024,
 				"h": 811
 			},
@@ -267,8 +267,8 @@
 		"image": "cosmoClimbVisuals.png",
 		"format": "RGBA8888",
 		"size": {
-			"w": 2577,
-			"h": 2257
+			"w": 2788,
+			"h": 2519
 		},
 		"scale": "1"
 	}
