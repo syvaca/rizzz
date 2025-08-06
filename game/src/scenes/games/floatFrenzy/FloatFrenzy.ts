@@ -2,7 +2,7 @@ import * as PIXI from 'pixi.js';
 import { FallingItem } from './FallingItem';
 import { PowerUp, type PowerUpType } from './PowerUp';
 import { ResizableScene } from '../../SceneManager';
-import { getUserCoins, updateUserCoins } from '../../../firebase';
+import { getUserRubies, updateUserRubies } from '../../../firebase';
 
 export class FloatFrenzy extends PIXI.Container implements ResizableScene {
   private items: FallingItem[] = [];
@@ -361,8 +361,8 @@ export class FloatFrenzy extends PIXI.Container implements ResizableScene {
     // Add score to user's rubies if they scored points
     if (this.score > 0) {
       try {
-        const currentCoins = await getUserCoins(this.userId);
-        await updateUserCoins(this.userId, this.score);
+        const currentCoins = await getUserRubies(this.userId);
+        await updateUserRubies(this.userId, this.score);
         console.log(`Added ${this.score} points to user's rubies. New total: ${currentCoins + this.score}`);
       } catch (error) {
         console.error('Failed to update user coins:', error);
