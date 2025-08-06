@@ -41,6 +41,11 @@ async function bootstrap() {
     // Float Frenzy
     { alias: 'floatFrenzyVisuals', src: '/assets/sprites/floatFrenzySprites/floatFrenzyVisuals.json' },
     { alias: 'floatFrenzyBackground', src: '/assets/sprites/floatFrenzySprites/floatFrenzyBackground.png' },
+
+    // Quick Tap Poker
+    { alias: 'quickTapPokerVisuals', src: '/assets/sprites/quickTapPokerSprites/quickTapPoker.json' },
+    { alias: 'quickTapPokerBackground', src: '/assets/sprites/quickTapPokerSprites/quickTapPokerBackground.png' },
+
   ]);
 
   const sceneManager = new SceneManager(app);
