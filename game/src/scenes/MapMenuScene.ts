@@ -1,7 +1,7 @@
 import { Application, Container, Sprite, Graphics, Assets, Text } from 'pixi.js';
 import { GAMES, GameData } from '../data/games';
 import { GamePopup } from '../components/GamePopup';
-import { getUserCoins, subscribeToUser } from "../firebase";
+import { getUserRubies, subscribeToUser } from "../firebase";
 
 export class MapMenuScene extends Container {
   private mapContainer!: Container;
@@ -119,7 +119,7 @@ export class MapMenuScene extends Container {
       this.coinContainer.addChild(this.rubySprite);
       
       // Create coin text
-      const coins = await getUserCoins(this.userId);
+      const coins = await getUserRubies(this.userId);
       this.coinText = new Text(`${coins}`, {
         fontFamily: 'Montserrat',
         fontSize: 24,
