@@ -31,12 +31,18 @@ export class QuickTapPoker extends PIXI.Container implements ResizableScene {
   private selectedCountText!: PIXI.Text;
   private finalHandText!: PIXI.Text;
   private scoreText!: PIXI.Text;
+  private gameScoreText!: PIXI.Text; // Real-time score display during gameplay
+  private rubySprite!: PIXI.Sprite; // Ruby icon for score display
+  private countdownText!: PIXI.Text; // Countdown text for auto-return
 
   // Texture atlas
   private textureAtlas: PIXI.Spritesheet | null = null;
 
   // Score
   private score = 0;
+
+  // Cleanup tracking
+  private countdownInterval: number | null = null;
 
   constructor(app: PIXI.Application, userId: string, showMapMenu: () => void, isMobile: boolean = false) {
     super();
@@ -152,10 +158,13 @@ export class QuickTapPoker extends PIXI.Container implements ResizableScene {
 
     // Make interactive
     this.startContainer.eventMode = 'static';
-    this.startContainer.on('pointerdown', () => this.startGame());
+    this.startContainer.on('pointerdown', (e: any) => {
+      e.stopPropagation(); // Prevent event from bubbling to MapMenuScene
+      this.startGame();
+    });
   }
 
-  private setupGameScreen(): void {
+  private async setupGameScreen(): Promise<void> {
     this.gameContainer.removeChildren();
 
     // Timer display
@@ -179,6 +188,60 @@ export class QuickTapPoker extends PIXI.Container implements ResizableScene {
     this.selectedCountText.x = 20;
     this.selectedCountText.y = 20;
     this.gameContainer.addChild(this.selectedCountText);
+
+    // Setup ruby + score display (same as Float Frenzy)
+    await this.setupGameScoreDisplay();
+  }
+
+  private async setupGameScoreDisplay(): Promise<void> {
+    try {
+      // Load ruby sprite (same as Float Frenzy)
+      const rubyTexture = await PIXI.Assets.load('/assets/sprites/ruby.png');
+      this.rubySprite = new PIXI.Sprite(rubyTexture);
+      this.rubySprite.width = 32;
+      this.rubySprite.height = 32;
+      
+      // Create score text (same style as Float Frenzy)
+      const baseFontSize = this.isMobile ? 28 : 28;
+      const scaleFactor = Math.min(this.app.screen.width / 400, this.app.screen.height / 600);
+      const fontSize = Math.max(20, baseFontSize * scaleFactor);
+      
+      this.gameScoreText = new PIXI.Text('0', {
+        fontSize,
+        fill: 0xffffff,
+        fontFamily: 'SuperWater'
+      });
+      
+      // Position dynamically (same as Float Frenzy)
+      this.updateGameScorePosition();
+      
+      this.gameContainer.addChild(this.rubySprite);
+      this.gameContainer.addChild(this.gameScoreText);
+    } catch (error) {
+      console.error('Failed to setup game score display:', error);
+    }
+  }
+
+  private updateGameScorePosition(): void {
+    if (this.rubySprite && this.gameScoreText) {
+      const margin = this.isMobile ? 15 : 30;
+      // Calculate total width needed (ruby + spacing + text) - same as Float Frenzy
+      const totalWidth = 32 + 10 + this.gameScoreText.width; // ruby width + spacing + text width
+      const padding = 20; // Padding from screen edge
+      
+      // Position from right edge (same as Float Frenzy)
+      this.rubySprite.x = this.app.screen.width - totalWidth - padding;
+      this.rubySprite.y = margin;
+      this.gameScoreText.x = this.rubySprite.x + 42; // Ruby width + spacing
+      this.gameScoreText.y = this.rubySprite.y - 5; // Same vertical alignment as Float Frenzy
+    }
+  }
+
+  private updateGameScoreDisplay(): void {
+    if (this.gameScoreText) {
+      this.gameScoreText.text = this.score.toString(); // Just the number, no "Score:" prefix
+      this.updateGameScorePosition();
+    }
   }
 
   private setupEndScreen(): void {
@@ -225,20 +288,16 @@ export class QuickTapPoker extends PIXI.Container implements ResizableScene {
     this.scoreText.y = this.app.screen.height * 2 / 3;
     this.endContainer.addChild(this.scoreText);
 
-    // Restart button
-    const restartText = new PIXI.Text('TAP TO PLAY AGAIN', {
+    // Auto-return countdown
+    this.countdownText = new PIXI.Text('', {
       fontSize: this.isMobile ? 20 : 24,
       fill: 0xcccccc,
       fontFamily: 'Arial'
     });
-    restartText.anchor.set(0.5);
-    restartText.x = this.app.screen.width / 2;
-    restartText.y = this.app.screen.height * 3 / 4;
-    this.endContainer.addChild(restartText);
-
-    // Make interactive
-    this.endContainer.eventMode = 'static';
-    this.endContainer.on('pointerdown', () => this.startGame());
+    this.countdownText.anchor.set(0.5);
+    this.countdownText.x = this.app.screen.width / 2;
+    this.countdownText.y = this.app.screen.height * 3 / 4;
+    this.endContainer.addChild(this.countdownText);
   }
 
   private showStartScreen(): void {
@@ -260,6 +319,23 @@ export class QuickTapPoker extends PIXI.Container implements ResizableScene {
     this.startContainer.visible = false;
     this.gameContainer.visible = false;
     this.endContainer.visible = true;
+
+    // Start 3-second countdown to return to map
+    let countdown = 3;
+    this.countdownInterval = setInterval(() => {
+      countdown--;
+      if (countdown > 0) {
+        this.countdownText.text = `Returning to map in ${countdown}...`;
+      } else {
+        this.countdownText.text = 'Returning to map...';
+        clearInterval(this.countdownInterval!);
+        // Return to map after countdown
+        setTimeout(() => {
+          this.cleanup();
+          this.showMapMenu();
+        }, 500); // Small delay for the final message
+      }
+    }, 1000);
   }
 
   private startGame(): void {
@@ -361,6 +437,7 @@ export class QuickTapPoker extends PIXI.Container implements ResizableScene {
     }
     
     this.updateSelectedCountDisplay();
+    this.updateGameScoreDisplay();
   }
 
   private updateSelectedCountDisplay(): void {
@@ -412,17 +489,32 @@ export class QuickTapPoker extends PIXI.Container implements ResizableScene {
     this.showEndScreen();
   }
 
+  private cleanup(): void {
+    // Stop game loop
+    this.app.ticker.remove(this.gameLoop);
+    
+    // Clear any intervals
+    if (this.countdownInterval) {
+      clearInterval(this.countdownInterval);
+      this.countdownInterval = null;
+    }
+  }
+
   // ResizableScene interface
   resize(): void {
     // Update positions for different screen sizes
     if (this.timerText) {
       this.timerText.x = this.app.screen.width / 2;
     }
+    if (this.gameScoreText) {
+      this.gameScoreText.x = this.rubySprite.x + 42; // Ruby width + spacing
+      this.gameScoreText.y = this.rubySprite.y - 5; // Same vertical alignment as Float Frenzy
+    }
     // Add more resize logic as needed
   }
 
   destroy(options?: any): void {
-    this.app.ticker.remove(this.gameLoop);
+    this.cleanup();
     super.destroy(options);
   }
 }

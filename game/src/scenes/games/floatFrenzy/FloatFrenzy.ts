@@ -4,7 +4,7 @@ import { PowerUp, type PowerUpType } from './PowerUp';
 import { ResizableScene } from '../../SceneManager';
 import { getUserCoins, updateUserCoins } from '../../../firebase';
 
-export class FloatFrenzy extends PIXI.Container {
+export class FloatFrenzy extends PIXI.Container implements ResizableScene {
   private items: FallingItem[] = [];
   public gravity = 100;      // px per ms²
   private spawnTimer = 0;
@@ -144,15 +144,32 @@ export class FloatFrenzy extends PIXI.Container {
       fontFamily: 'SuperWater' 
     });
     
-    // Position ruby and score in top-right with responsive margins
-    const margin = this.isMobile ? 15 : 30;
-    this.rubySprite.x = this.app.screen.width - 120 - margin;
-    this.rubySprite.y = margin;
-    this.scoreText.x = this.rubySprite.x + 40;
-    this.scoreText.y = this.rubySprite.y - 5;
+    // Position dynamically based on text width
+    this.updateScorePosition();
     
     this.addChild(this.rubySprite);
     this.addChild(this.scoreText);
+  }
+
+  private updateScorePosition() {
+    if (this.rubySprite && this.scoreText) {
+      const margin = this.isMobile ? 15 : 30;
+      // Calculate total width needed (ruby + spacing + text)
+      const totalWidth = 32 + 10 + this.scoreText.width; // ruby width + spacing + text width
+      const padding = 20; // Padding from screen edge
+      
+      // Position from right edge
+      this.rubySprite.x = this.app.screen.width - totalWidth - padding;
+      this.rubySprite.y = margin;
+      this.scoreText.x = this.rubySprite.x + 42; // Ruby width + spacing
+      this.scoreText.y = this.rubySprite.y - 5;
+    }
+  }
+
+  private addScore(points: number) {
+    this.score += points;
+    this.scoreText.text = this.score.toString();
+    this.updateScorePosition();
   }
 
   update(deltaMS: number) {
@@ -258,7 +275,7 @@ export class FloatFrenzy extends PIXI.Container {
       } else {
         // Regular item clicked - kick and add score
         sprite.kick();
-        this.addScore(10);
+        this.addScore(2);
       }
     });
     this.items.push(sprite);
@@ -414,12 +431,6 @@ export class FloatFrenzy extends PIXI.Container {
         this.app.stage.removeChild(notification);
       }
     }, 2000);
-  }
-
-  // Increment score and update display
-  private addScore(points: number) {
-    this.score += points;
-    this.scoreText.text = this.score.toString();
   }
 
   private setupStartScreen() {
