@@ -104,18 +104,29 @@ export class MapMenuScene extends Container {
         fill: 0xffffff,
         fontWeight: 'bold'
       });
-      this.coinText.x = 40;
+      this.coinText.x = 40; // Position after ruby sprite
       this.coinText.y = 5;
       this.coinContainer.addChild(this.coinText);
       
-      // Position in upper right corner
-      this.coinContainer.x = this.app.renderer.width - 80;
-      this.coinContainer.y = 20;
+      // Position dynamically based on text width
+      this.updateCoinDisplayPosition();
       
       this.addChild(this.coinContainer);
       
     } catch (error) {
       console.error('Could not create coin display:', error);
+    }
+  }
+
+  private updateCoinDisplayPosition() {
+    if (this.coinContainer && this.coinText) {
+      // Calculate total width of the display (ruby + spacing + text)
+      const totalWidth = 40 + this.coinText.width; // 40px for ruby + spacing
+      const padding = 20; // Padding from screen edge
+      
+      // Position from right edge, ensuring it doesn't go off screen
+      this.coinContainer.x = this.app.renderer.width - totalWidth - padding;
+      this.coinContainer.y = 20;
     }
   }
 
@@ -351,8 +362,7 @@ export class MapMenuScene extends Container {
     
     // Reposition coin display in upper right corner
     if (this.coinContainer) {
-      this.coinContainer.x = this.app.renderer.width - 80;
-      this.coinContainer.y = 20;
+      this.updateCoinDisplayPosition();
     }
 
     // Recalculate zoom level for new screen size

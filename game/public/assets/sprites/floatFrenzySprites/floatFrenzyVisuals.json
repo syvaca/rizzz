@@ -1,0 +1,95 @@
+{"frames": {
+
+"Anchor.png":
+{
+	"frame": {"x":472,"y":227,"w":219,"h":277},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":219,"h":277},
+	"sourceSize": {"w":219,"h":277}
+},
+"Barrel_1.png":
+{
+	"frame": {"x":0,"y":227,"w":192,"h":237},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":192,"h":237},
+	"sourceSize": {"w":192,"h":237}
+},
+"Barrel_2.png":
+{
+	"frame": {"x":376,"y":0,"w":264,"h":212},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":264,"h":212},
+	"sourceSize": {"w":264,"h":212}
+},
+"Bomb.png":
+{
+	"frame": {"x":640,"y":0,"w":239,"h":227},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":239,"h":227},
+	"sourceSize": {"w":239,"h":227}
+},
+"explosion.png":
+{
+	"frame": {"x":192,"y":227,"w":280,"h":252},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":280,"h":252},
+	"sourceSize": {"w":280,"h":252}
+},
+"Net.png":
+{
+	"frame": {"x":0,"y":520,"w":849,"h":341},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":849,"h":341},
+	"sourceSize": {"w":849,"h":341}
+},
+"Pearl.png":
+{
+	"frame": {"x":0,"y":0,"w":140,"h":119},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":140,"h":119},
+	"sourceSize": {"w":140,"h":119}
+},
+"Seaweed_2.png":
+{
+	"frame": {"x":691,"y":227,"w":235,"h":293},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":235,"h":293},
+	"sourceSize": {"w":235,"h":293}
+},
+"Shield.png":
+{
+	"frame": {"x":140,"y":0,"w":98,"h":124},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":98,"h":124},
+	"sourceSize": {"w":98,"h":124}
+},
+"Small-bomb.png":
+{
+	"frame": {"x":238,"y":0,"w":138,"h":153},
+	"rotated": false,
+	"trimmed": false,
+	"spriteSourceSize": {"x":0,"y":0,"w":138,"h":153},
+	"sourceSize": {"w":138,"h":153}
+}},
+"animations": {
+	"Barrel": ["Barrel_1.png","Barrel_2.png"]
+},
+"meta": {
+	"app": "https://www.codeandweb.com/texturepacker",
+	"version": "1.0",
+	"image": "floatFrenzyVisuals.png",
+	"format": "RGBA8888",
+	"size": {"w":926,"h":861},
+	"scale": "1",
+	"smartupdate": "$TexturePacker:SmartUpdate:26cb5bd031d3ed951a80543ed19c8820:828fffb5e753441f96e9966d6ea31705:af4b73d2765f406eabeb6f29eea70c39$"
+}
+}
