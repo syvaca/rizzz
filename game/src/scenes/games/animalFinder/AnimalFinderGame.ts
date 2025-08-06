@@ -1,7 +1,7 @@
 import { Application, Container, Assets, Text, TextStyle, Graphics, Sprite, Texture } from 'pixi.js';
 import { Animal, AnimalType } from './Animal';
 import { ResizableScene } from '../../SceneManager';
-import { getUserCoins, updateUserCoins } from '../../../firebase';
+import { getUserRubies, updateUserRubies } from '../../../firebase';
 
 export class AnimalFinderGame extends Container implements ResizableScene {
   // overlay
@@ -332,11 +332,11 @@ export class AnimalFinderGame extends Container implements ResizableScene {
       // Game over - add score to user's rubies
       if (this.currentScore > 0) {
         try {
-          const currentCoins = await getUserCoins(this.userId);
-          await updateUserCoins(this.userId, currentCoins + this.currentScore);
-          console.log(`Added ${this.currentScore} points to user's rubies. New total: ${currentCoins + this.currentScore}`);
+          const currentRubies = await getUserRubies(this.userId);
+          await updateUserRubies(this.userId, currentRubies + this.currentScore);
+          console.log(`Added ${this.currentScore} points to user's rubies. New total: ${currentRubies + this.currentScore}`);
         } catch (error) {
-          console.error('Failed to update user coins:', error);
+          console.error('Failed to update user rubies:', error);
         }
       }
       
