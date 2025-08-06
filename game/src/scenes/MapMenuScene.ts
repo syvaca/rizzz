@@ -31,11 +31,14 @@ export class MapMenuScene extends Container {
   ) {
     super();
     this.outsideClickHandler = this.handleOutsideClick.bind(this);
+
+    // Add window resize event listener
+    window.addEventListener('resize', this.resize.bind(this));
+
     this.calculateZoomLevel();
     this.createMap();
     this.setupScrolling();
     this.createCoinDisplay();
-    this.setupResizeHandler();
   }
 
   private calculateZoomLevel() {
@@ -51,31 +54,6 @@ export class MapMenuScene extends Container {
     this.zoomLevel = Math.max(zoomForWidth, zoomForHeight);
     
     this.zoomLevel = Math.max(this.zoomLevel, 0.1);
-  }
-
-  private setupResizeHandler() {
-    // Add window resize event listener
-    window.addEventListener('resize', this.onResize.bind(this));
-  }
-
-  private onResize() {
-    // Recalculate zoom level for new screen size
-    const oldZoomLevel = this.zoomLevel;
-    this.calculateZoomLevel();
-    
-    // Update map container scale if it exists
-    if (this.mapContainer) {
-      this.mapContainer.scale.set(this.zoomLevel);
-      
-      // Recenter the map to maintain a good position after resize
-      this.centerMap();
-      
-      // Update coin display position
-      if (this.coinContainer) {
-        this.coinContainer.x = window.innerWidth - 80;
-        this.coinContainer.y = 20;
-      }
-    }
   }
 
   private async createMap() {
@@ -375,6 +353,24 @@ export class MapMenuScene extends Container {
     if (this.coinContainer) {
       this.coinContainer.x = this.app.renderer.width - 80;
       this.coinContainer.y = 20;
+    }
+
+    // Recalculate zoom level for new screen size
+    const oldZoomLevel = this.zoomLevel;
+    this.calculateZoomLevel();
+    
+    // Update map container scale if it exists
+    if (this.mapContainer) {
+      this.mapContainer.scale.set(this.zoomLevel);
+      
+      // Recenter the map to maintain a good position after resize
+      this.centerMap();
+      
+      // Update coin display position
+      if (this.coinContainer) {
+        this.coinContainer.x = window.innerWidth - 80;
+        this.coinContainer.y = 20;
+      }
     }
   }
 } 

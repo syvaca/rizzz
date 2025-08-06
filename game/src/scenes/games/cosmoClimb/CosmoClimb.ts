@@ -1,10 +1,16 @@
 import { Application, Container, Sprite, Text, Ticker, Graphics, TilingSprite, Texture, Spritesheet, Assets, Rectangle } from 'pixi.js';
 import { ResizableScene } from '../../SceneManager';
-import { getUserCoins, updateUserCoins } from '../../../firebase';
+import { 
+  getUserRubies, 
+  updateUserRubies, 
+  getUserHighScore, 
+  updateUserHighScore 
+} from '../../../firebase';
 
 
 interface Monster {
   sprite: Sprite;
+  isHitByRocket: boolean;
   x: number;
   y: number;
   vx: number;
@@ -34,6 +40,53 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   private touchDirection: number = 0;
   private score: number = 0;
   private scoreText!: Text;
+  private highScoreText!: Text;
+  private rubyText!: Text;
+  private rubySprite!: Sprite;
+  private highScore: number = 0;
+  private rubies: number = 0;
+
+  private addRubies(amount: number) {
+    this.rubies += amount;
+    this.rubyText.text = this.rubies.toString();
+    
+    // Create a small popup effect
+    const popup = new Text(`+${amount}`, {
+      fontFamily: 'Chewy',
+      fontSize: 20,
+      fill: 0xff3366,
+      stroke: 0x000000,
+      strokeThickness: 2
+    } as any);
+    popup.anchor.set(0.5);
+    popup.x = this.rubySprite.x + this.rubySprite.width / 2 + 30;
+    popup.y = this.rubySprite.y + this.rubySprite.height / 2;
+    this.foregroundLayer.addChild(popup);
+    
+    // Animate the popup
+    const startY = popup.y;
+    const duration = 1000; // 1 second
+    const startTime = Date.now();
+    
+    const animate = () => {
+      const now = Date.now();
+      const elapsed = now - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      
+      popup.y = startY - (progress * 30); // Move up
+      popup.alpha = 1 - progress; // Fade out
+      
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        this.foregroundLayer.removeChild(popup);
+      }
+    };
+    
+    requestAnimationFrame(animate);
+  }
+  private isNewHighScore: boolean = false;
+  private highScoreBlinkTimer: number = 0;
   private highestY: number = 0;
   private startingWorldY: number = 0;
   private lastScoreUpdate: number = 0;
@@ -209,8 +262,6 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       const startY = this.lastGeneratedY - this.generationZoneHeight;
       const endY = this.lastGeneratedY;
       
-
-      
       this.generateMonsters(startY, endY);
       this.generatePowerups(startY, endY);
       this.generateBlackHoles(startY, endY);
@@ -229,26 +280,153 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     }
   }
 
-  private showGameOver() {
-    const overlay = new Graphics();
-    overlay.beginFill(0x000000, 0.7);
-    overlay.drawRect(0, 0, this.app.renderer.width, this.app.renderer.height);
-    overlay.endFill();
-    this.addChild(overlay);
-    const text = new Text('Game Over', {
-      fontFamily: 'Chewy', fontSize: 64, fill: 0xffffff, stroke: 0x000000, strokeThickness: 6, align: 'center'
-    } as any);
-    text.anchor.set(0.5);
-    text.x = this.app.renderer.width / 2;
-    text.y = this.app.renderer.height / 2;
-    this.addChild(text);
-    setTimeout(() => {
-      this.removeChild(overlay);
-      this.removeChild(text);
-    }, 2000);
-    setTimeout(() => {
-      this.onStart();
-    }, 2000);
+  private async showGameOver() {
+    // Submit score and rubies to Firebase
+    const gameId = 'cosmo-climb'; // Match the ID in games.ts
+    const finalScore = this.score;
+    
+    try {
+      // Save rubies to Firebase
+      if (this.rubies > 0) {
+        await updateUserRubies(this.userId, this.rubies);
+      }
+      
+      // If we have a new high score, update it
+      if (this.isNewHighScore) {
+        await updateUserHighScore(this.userId, gameId, finalScore);
+        this.highScore = finalScore;
+      }
+      
+      // Get the latest high score from the database
+      const currentHighScore = await getUserHighScore(this.userId, gameId) || 0;
+      const isNewHighScore = this.isNewHighScore || (finalScore > 0 && finalScore >= currentHighScore);
+      
+      // Create game over overlay
+      const overlay = new Graphics();
+      overlay.beginFill(0x000000, 0.7);
+      overlay.drawRect(0, 0, this.app.renderer.width, this.app.renderer.height);
+      overlay.endFill();
+      this.addChild(overlay);
+      
+      // Game Over text
+      const gameOverText = new Text('Game Over', {
+        fontFamily: 'Chewy', 
+        fontSize: 64, 
+        fill: 0xffffff, 
+        stroke: 0x000000, 
+        strokeThickness: 6, 
+        align: 'center'
+      } as any);
+      gameOverText.anchor.set(0.5);
+      gameOverText.x = this.app.renderer.width / 2;
+      gameOverText.y = this.app.renderer.height / 2 - 80;
+      this.addChild(gameOverText);
+      
+      // Final score text
+      const scoreText = new Text(`Score: ${finalScore}`, {
+        fontFamily: 'Chewy',
+        fontSize: 48,
+        fill: 0xffffff,
+        stroke: 0x000000,
+        strokeThickness: 4,
+        align: 'center'
+      } as any);
+      scoreText.anchor.set(0.5);
+      scoreText.x = this.app.renderer.width / 2;
+      scoreText.y = this.app.renderer.height / 2;
+      this.addChild(scoreText);
+      
+      // High score text (only show if not a new high score)
+      let yOffset = 60;
+      if (!isNewHighScore && currentHighScore > 0) {
+        const highScoreText = new Text(`High Score: ${currentHighScore}`, {
+          fontFamily: 'Chewy',
+          fontSize: 36,
+          fill: 0xffff00,
+          stroke: 0x000000,
+          strokeThickness: 3,
+          align: 'center'
+        } as any);
+        highScoreText.anchor.set(0.5);
+        highScoreText.x = this.app.renderer.width / 2;
+        highScoreText.y = this.app.renderer.height / 2 + yOffset;
+        this.addChild(highScoreText);
+        yOffset += 40;
+      } else if (isNewHighScore) {
+        const newHighScoreText = new Text('New High Score!', {
+          fontFamily: 'Chewy',
+          fontSize: 36,
+          fill: 0x00ff00,
+          stroke: 0x000000,
+          strokeThickness: 3,
+          align: 'center'
+        } as any);
+        newHighScoreText.anchor.set(0.5);
+        newHighScoreText.x = this.app.renderer.width / 2;
+        newHighScoreText.y = this.app.renderer.height / 2 + yOffset;
+        this.addChild(newHighScoreText);
+        yOffset += 40;
+      }
+      
+      // Show rubies earned
+      if (this.rubies > 0) {
+        // Add ruby icon
+        const rubySprite = new Sprite(this.visuals.textures['ruby.png']);
+        rubySprite.width = 32;
+        rubySprite.height = 32;
+        rubySprite.anchor.set(0.5);
+        rubySprite.x = this.app.renderer.width / 2 - 40;
+        rubySprite.y = this.app.renderer.height / 2 + yOffset;
+        this.addChild(rubySprite);
+        
+        // Add rubies text
+        const rubiesText = new Text(`x${this.rubies}`, {
+          fontFamily: 'Chewy',
+          fontSize: 36,
+          fill: 0xffffff,
+          stroke: 0x000000,
+          strokeThickness: 3,
+          align: 'center'
+        } as any);
+        rubiesText.anchor.set(0.5);
+        rubiesText.x = this.app.renderer.width / 2 + 20;
+        rubiesText.y = this.app.renderer.height / 2 + yOffset;
+        this.addChild(rubiesText);
+      }
+      
+      // Remove overlay and reset after delay
+      setTimeout(() => {
+        this.removeChildren().forEach(child => child.destroy());
+        this.onStart();
+      }, 3000);
+      
+    } catch (error) {
+      console.error('Error saving high score:', error);
+      // Fallback to simple game over if there's an error with Firebase
+      const overlay = new Graphics();
+      overlay.beginFill(0x000000, 0.7);
+      overlay.drawRect(0, 0, this.app.renderer.width, this.app.renderer.height);
+      overlay.endFill();
+      this.addChild(overlay);
+      
+      const text = new Text('Game Over', {
+        fontFamily: 'Chewy', 
+        fontSize: 64, 
+        fill: 0xffffff, 
+        stroke: 0x000000, 
+        strokeThickness: 6, 
+        align: 'center'
+      } as any);
+      text.anchor.set(0.5);
+      text.x = this.app.renderer.width / 2;
+      text.y = this.app.renderer.height / 2;
+      this.addChild(text);
+      
+      setTimeout(() => {
+        this.removeChildren().forEach(child => child.destroy());
+        this.onStart();
+      }, 2000);
+    }
   }
 
   private detectMobileAndOptimize() {
@@ -294,13 +472,59 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     this.foregroundLayer.addChild(this.solarStorm);
   }
 
-  private generateScoreText() {
+  private async generateScoreText() {
+    // Main score display
     this.scoreText = new Text('0', {
-      fontFamily: 'Chewy', fontSize: 32, fill: 0xffffff, stroke: 0x000000, strokeThickness: 4
+      fontFamily: 'Chewy', 
+      fontSize: 32, 
+      fill: 0xffffff, 
+      stroke: 0x000000, 
+      strokeThickness: 4
     } as any);
     this.scoreText.x = 20;
     this.scoreText.y = 20;
     this.foregroundLayer.addChild(this.scoreText);
+
+    // High score display
+    try {
+      const gameId = 'cosmo-climb';
+      this.highScore = await getUserHighScore(this.userId, gameId) || 0;
+    } catch (error) {
+      console.error('Error fetching high score:', error);
+      this.highScore = 0;
+    }
+
+    this.highScoreText = new Text(`High Score: ${this.highScore}`, {
+      fontFamily: 'Chewy',
+      fontSize: 16,
+      fill: 0xffffff,
+      stroke: 0x000000,
+      strokeThickness: 2
+    } as any);
+    this.highScoreText.x = 20;
+    this.highScoreText.y = 60; // Positioned below the score
+    this.foregroundLayer.addChild(this.highScoreText);
+
+    // Rubies counter display
+    // Create ruby sprite
+    this.rubySprite = new Sprite(this.visuals.textures['ruby.png']);
+    this.rubySprite.width = 20;
+    this.rubySprite.height = 20;
+    this.rubySprite.x = 20;
+    this.rubySprite.y = 85;
+    this.foregroundLayer.addChild(this.rubySprite);
+
+    // Ruby count text
+    this.rubyText = new Text(this.rubies.toString(), {
+      fontFamily: 'Chewy',
+      fontSize: 16,
+      fill: 0xffffff,
+      stroke: 0x000000,
+      strokeThickness: 2
+    } as any);
+    this.rubyText.x = 45; // Positioned to the right of the ruby sprite
+    this.rubyText.y = 85; // Same Y position as ruby sprite
+    this.foregroundLayer.addChild(this.rubyText);
   }
 
   private setupEventListeners() {
@@ -407,7 +631,7 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     sprite.y = y;
     const vx = (Math.random() - 0.5) * 1.5;
     const vy = (Math.random() - 0.5) * 0.5;
-    return { sprite, x: sprite.x, y: sprite.y, vx, vy };
+    return { sprite, isHitByRocket: false, x: sprite.x, y: sprite.y, vx, vy };
   }
 
   private handleTouchMove = (e: TouchEvent) => {
@@ -465,7 +689,7 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       effectiveTilt = this.keyboardTilt;
     } else {
       // Use touch controls (more sensitive on mobile)
-      const touchSensitivity = this.isMobile ? 0.75 : 0.6;
+      const touchSensitivity = this.isMobile ? 0.7 : 0.6;
       effectiveTilt = this.touchDirection * touchSensitivity;
     }
     
@@ -546,24 +770,43 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       // Use alien-right sprite when moving straight up
       this.alien.texture = this.visuals.textures['alien-right.png'];
     }
+
   }
-
-
 
   private updateScore() {
     const distanceTraveled = this.startingWorldY - this.alienWorldY; // Positive when moved up from start
     const newScore = Math.max(0, Math.floor(distanceTraveled));
+    
     if (newScore !== this.score) {
       this.score = newScore;
+      
+      // Update score display
       if (this.frameCount - this.lastScoreUpdate >= this.scoreUpdateInterval) {
         this.scoreText.text = this.score.toString();
         this.lastScoreUpdate = this.frameCount;
+        
+        // Check for new high score
+        if (this.score > this.highScore) {
+          if (!this.isNewHighScore) {
+            this.isNewHighScore = true;
+            this.highScoreText.text = 'New High Score!';
+            this.highScoreBlinkTimer = 0;
+          }
+          this.highScore = this.score;
+        } else if (!this.isNewHighScore) {
+          // Only show regular high score if we're not in new high score mode
+          this.highScoreText.text = `High Score: ${this.highScore}`;
+        }
       }
     }
-    if (!(newScore % 100)) {
-      console.log("curr speed: ", this.baseSpeed);
+    
+    // Handle blinking effect for new high score
+    if (this.isNewHighScore) {
+      this.highScoreBlinkTimer += Ticker.shared.deltaMS;
+      const blinkSpeed = 200; // ms per blink
+      const isVisible = Math.floor(this.highScoreBlinkTimer / blinkSpeed) % 2 === 0;
+      this.highScoreText.visible = isVisible;
     }
-
   }
 
   private updateCamera() {
@@ -590,21 +833,43 @@ export class CosmoClimbScene extends Container implements ResizableScene {
    
   private handleCollisions() {
     if (!this.objectsBeingSucked.has(this.alien)) {
-    for (let i = this.monsters.length - 1; i >= 0; i--) {
-      const monster = this.monsters[i];
-      if (
-        Math.abs(this.alien.x - monster.sprite.x) < 24 &&
-        Math.abs(this.alien.y - monster.sprite.y) < 24
-      ) {
-        console.log('monsters', this.monsters);
-        this.monsterLayer.removeChild(monster.sprite);
-        console.log('monster collision', monster);
-        this.monsters.splice(i, 1);
-        console.log('monsters', this.monsters);
-        this.handleMonsterCollision();
-        return;
+      for (let i = this.monsters.length - 1; i >= 0; i--) {
+        const monster = this.monsters[i];
+        if (
+          Math.abs(this.alien.x - monster.sprite.x) < 24 &&
+          Math.abs(this.alien.y - monster.sprite.y) < 24
+        ) {
+          // If rocket is active, apply physics to the monster
+          if (this.rocketActive) {
+            monster.isHitByRocket = true;
+            // Calculate direction from alien to monster
+            const dx = monster.sprite.x - this.alien.x;
+            const dy = monster.sprite.y - this.alien.y;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            
+            if (distance > 0) {
+              // Normalize and scale the direction for the knockback force
+              const knockbackForce = 10; // Adjust this value for stronger/weaker knockback
+              const knockbackX = (dx / distance) * knockbackForce;
+              const knockbackY = (dy / distance) * knockbackForce;
+              
+              // Apply the knockback velocity
+              monster.vx = knockbackX;
+              monster.vy = knockbackY - 5; // Add some upward force
+              
+              // Add rotation effect based on velocity
+              monster.sprite.rotation = Math.atan2(monster.vy, monster.vx);
+              this.addRubies(1); // Add 1 ruby for hitting monster with rocket
+            return;
+          }
+        }
+          
+          // Normal monster collision 
+          this.monsterLayer.removeChild(monster.sprite);
+          this.monsters.splice(i, 1);
+          this.handleMonsterCollision();
+          return;
       }
-    }
 
     if (!this.objectsBeingSucked.has(this.alien)) {
       // Only check powerup collisions every 3 frames for better performance
@@ -617,10 +882,17 @@ export class CosmoClimbScene extends Container implements ResizableScene {
         ) {
           if (powerup.type === 'rocket') {
             this.rocketActive = true;
-                this.rocketTimer = 4000;
+            this.rocketTimer = 4000;
+            // Make player invulnerable when collecting rocket
+            this.isVulnerable = false;
+            this.damageTimer = 0;
+            this.slowdownTimer = 0;
+            this.alien.visible = true; // Ensure alien is visible
+            this.addRubies(2); // Add 2 rubies for rocket
           } else if (powerup.type === 'powercell') {
             this.powercellActive = true;
-                this.powercellTimer = 1000; 
+            this.powercellTimer = 1000;
+            this.addRubies(1); // Add 1 ruby for powercell
           }
             this.powerupLayer.removeChild(powerup.sprite);
             this.powerups.splice(i, 1); 
@@ -672,7 +944,8 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       }
     }
   }
-    
+}
+
   private handleMonsterCollision() {
     console.log('handleMonsterCollision', this.isVulnerable);
     if (this.isVulnerable) {
@@ -865,12 +1138,18 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     for (const monster of this.monsters) {
       monster.sprite.x += monster.vx;
       monster.sprite.y += monster.vy;
-      // Bounce off walls
-      if (monster.sprite.x < 24 || monster.sprite.x > this.app.renderer.width - 24) monster.vx *= -1;
-      if (monster.sprite.y < 0 || monster.sprite.y > this.app.renderer.height - 200) monster.vy *= -1;
+      if (monster.isHitByRocket) { // remove when off screen in x and y directions
+        if (monster.sprite.y > this.app.renderer.height || monster.sprite.x > this.app.renderer.width || monster.sprite.x < 0) {
+          this.monsterLayer.removeChild(monster.sprite);
+          this.monsters = this.monsters.filter(m => m.sprite !== monster.sprite);
+        }
+      } else { // bounce off walls
+        if (monster.sprite.x < 24 || monster.sprite.x > this.app.renderer.width - 24) monster.vx *= -1;
+        if (monster.sprite.y < 0 || monster.sprite.y > this.app.renderer.height - 200) monster.vy *= -1;
       }
     }
   }
+}
 
   public resize() {
     if (this.startOverlay) {

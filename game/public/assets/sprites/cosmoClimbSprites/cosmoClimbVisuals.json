@@ -240,10 +240,30 @@
 				"h": 572
 			}
 		},
+		"ruby.png": {
+			"frame": {
+				"x": 2206,
+				"y": 1445,
+				"w": 468,
+				"h": 433
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 468,
+				"h": 433
+			},
+			"sourceSize": {
+				"w": 468,
+				"h": 433
+			}
+		},
 		"solar-storm.png": {
 			"frame": {
-				"x": 1763,
-				"y": 1707,
+				"x": 1,
+				"y": 1880,
 				"w": 1024,
 				"h": 811
 			},
@@ -267,8 +287,8 @@
 		"image": "cosmoClimbVisuals.png",
 		"format": "RGBA8888",
 		"size": {
-			"w": 2788,
-			"h": 2519
+			"w": 2786,
+			"h": 2692
 		},
 		"scale": "1"
 	}
