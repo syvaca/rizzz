@@ -386,7 +386,7 @@ export class AnimalFinderGame extends Container implements ResizableScene {
   private async endGame(won: boolean) {
     this.gameState = won ? 'won' : 'lost';
     
-    this.resultText.text = won ? 'YOU WIN!' : 'TIME\'S UP! YOU LOSE!';
+    this.resultText.text = won ? 'Animal Found!' : 'TIME\'S UP! \n You win ' + `${this.currentScore}` + ` rubies!`;
     this.resultText.visible = true;
     this.resultText.x = window.innerWidth / 2 - this.resultText.width / 2;
     this.resultText.y = window.innerHeight / 2 - this.resultText.height / 2;

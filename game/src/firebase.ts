@@ -47,7 +47,7 @@ const initialPowerups: UserPowerups = {
 /**
  * Creates a new user entry (or overwrites if it exists).
  * @param userId   The unique ID for this user
- * @param rubies    Initial coin count (int)
+ * @param rubies    Initial ruby count (int)
  * @param highScores Initial high scores for each game (object {gameId: score})
  * @param powerups Initial powerups for the user
  */
@@ -149,8 +149,8 @@ export async function usePowerup(
 }
 
 export function updateUserRubies(userId: string, rubiesToAdd: number): Promise<void> {
-    const coinRef = ref(database, `users/${userId}/rubies`);
-    return runTransaction(coinRef, (currentRubies) => {
+    const rubyRef = ref(database, `users/${userId}/rubies`);
+    return runTransaction(rubyRef, (currentRubies) => {
       // currentRubies may be null on first write
       return (currentRubies ?? 0) + rubiesToAdd;
     })
