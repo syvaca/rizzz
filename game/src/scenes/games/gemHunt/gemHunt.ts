@@ -777,7 +777,7 @@ export class GemHuntGame extends Container {
     // Result text
     this.startText = new Text(
       this.gameWon ? 
-        'You win ' + `${this.currentBet*2}` + ` rubies!`: 'You Lose ' + `${this.currentBet}` + ` rubies!`, {
+        'You win ' + `${this.currentBet}` + ` rubies!`: 'You Lose ' + `${this.currentBet}` + ` rubies!`, {
       fontFamily: 'Montserrat, sans-serif',
       fontSize: 28,
       stroke: 0x000000,
