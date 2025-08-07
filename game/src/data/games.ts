@@ -26,7 +26,7 @@ export const GAMES: GameData[] = [
     id: 'animal-finder', 
     name: 'Animal Finder',
     description: 'Find the wanted animals on the screen',
-    photo: '/assets/game-thumbnails/animalFinderLogo.png',
+    photo: '/assets/game-thumbnails/animalFinderIcon.png',
     mapPosition: { x: 498, y: 766 },
     sceneClass: AnimalFinderGame
   },
