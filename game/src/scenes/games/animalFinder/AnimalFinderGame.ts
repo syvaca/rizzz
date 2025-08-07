@@ -332,9 +332,7 @@ export class AnimalFinderGame extends Container implements ResizableScene {
       // Game over - add score to user's rubies
       if (this.currentScore > 0) {
         try {
-          const currentRubies = await getUserRubies(this.userId);
-          await updateUserRubies(this.userId, currentRubies + this.currentScore);
-          console.log(`Added ${this.currentScore} points to user's rubies. New total: ${currentRubies + this.currentScore}`);
+          await updateUserRubies(this.userId, this.currentScore);
         } catch (error) {
           console.error('Failed to update user rubies:', error);
         }
