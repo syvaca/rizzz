@@ -46,6 +46,11 @@ async function bootstrap() {
     { alias: 'quickTapPokerVisuals', src: '/assets/sprites/quickTapPokerSprites/quickTapPoker.json' },
     { alias: 'quickTapPokerBackground', src: '/assets/sprites/quickTapPokerSprites/quickTapPokerBackground.png' },
 
+    // Gem Hunt
+    { alias: 'gemHuntVisuals', src: '/assets/sprites/gemHuntSprites/gemHuntSprites.json' },
+    { alias: 'gemHuntBackground', src: '/assets/sprites/gemHuntSprites/gemHuntBackground.png' },
+
+
   ]);
 
   const sceneManager = new SceneManager(app);

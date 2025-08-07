@@ -63,25 +63,14 @@ export class GamePopup extends Container {
     });
     this.addChild(this.closeButtonText);
 
-    // Create title - centered at top
-    this.titleText = new Text(gameData.name, {
-      fontFamily: 'Chewy',
-      fontSize: 16,
-      fill: 0xffffff,
-      fontWeight: 'bold'
-    });
-    this.titleText.x = 75 - (this.titleText.width / 2); // Center horizontally
-    this.titleText.y = 25;
-    this.addChild(this.titleText);
-
     // Try to load thumbnail - centered in middle
     try {
       const texture = await Assets.load(gameData.photo);
       this.thumbnail = new Sprite(texture);
-      this.thumbnail.width = 80;
-      this.thumbnail.height = 80;
-      this.thumbnail.x = 35; // Center horizontally (150 - 80) / 2
-      this.thumbnail.y = 50;
+      this.thumbnail.width = 100;
+      this.thumbnail.height = 100;
+      this.thumbnail.x = 25;
+      this.thumbnail.y = 25;
       this.addChild(this.thumbnail);
     } catch (error) {
       console.warn('Could not load thumbnail:', gameData.photo);
@@ -104,12 +93,12 @@ export class GamePopup extends Container {
     // Create play button text
     this.playButtonText = new Text('PLAY', {
       fontFamily: 'Chewy',
-      fontSize: 14,
+      fontSize: 18,
       fill: 0xffffff,
       fontWeight: 'bold'
     });
     this.playButtonText.x = 57;
-    this.playButtonText.y = 148;
+    this.playButtonText.y = 145;
     this.playButtonText.eventMode = 'static';
     this.playButtonText.cursor = 'pointer';
     this.playButtonText.on('pointerdown', () => {
@@ -144,4 +133,4 @@ export class GamePopup extends Container {
 
   public resize() {
   }
-} 
+}
