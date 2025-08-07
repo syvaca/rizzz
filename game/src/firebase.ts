@@ -48,14 +48,14 @@ const initialSongsStatus = Array.from({ length: 9 }, (_, i) =>
 /**
  * Creates a new user entry (or overwrites if it exists).
  * @param userId   The unique ID for this user
- * @param coins    Initial coin count (int)
- * @param highScore Initial high score (int)
+ * @param rubies    Initial coin count (int)
+ * @param highScores Initial high scores for each game (object {gameId: score})
  */
 
-export function writeUserData(userId: string, coins: number, highScore: number): Promise<void> {
+export function writeUserData(userId: string, rubies: number, highScores: Record<string, number> = {}): Promise<void> {
     return set(ref(database, `users/${userId}`), {
-        coins,
-        high_score: highScore,
+        rubies,
+        high_scores: highScores, 
     });
 }
 
@@ -72,7 +72,7 @@ export function initAnonymousUser(): Promise<string> {
           // seed the record if it doesn’t exist
           const snap = await get(userRef);
           if (!snap.exists()) {
-            await set(userRef, { coins: 0, high_score: 0, songs: initialSongsStatus});
+            await set(userRef, { rubies: 0, high_scores: {}, songs: initialSongsStatus});
           }
           resolve(user_id);
         } else {
@@ -82,46 +82,87 @@ export function initAnonymousUser(): Promise<string> {
     });
 }
 
-export function getUserCoins(userId: string): Promise<number> {
-    return get(ref(database, `users/${userId}/coins`))
+export function getUserRubies(userId: string): Promise<number> {
+    return get(ref(database, `users/${userId}/rubies`))
         .then(snap => snap.exists() ? snap.val() : 0)
         .catch(err => {
-            console.error("Failed to get user coins:", err);
+            console.error("Failed to get user rubies:", err);
             throw err;
         });
 }
 
-export function getUserHighScore(userId: string): Promise<number> {
-    return get(ref(database, `users/${userId}/high_score`))
+export function getUserHighScore(userId: string, gameId: string): Promise<number> {
+    return get(ref(database, `users/${userId}/high_scores/${gameId}`))
         .then(snap => snap.exists() ? snap.val() : 0)
         .catch(err => {
-            console.error("Failed to get user high score:", err);
+            console.error(`Failed to get user high score for ${gameId}:`, err);
             throw err;
         });
 }
 
-export function updateUserCoins(userId: string, coinsToAdd: number): Promise<void> {
-    const coinRef = ref(database, `users/${userId}/coins`);
-    return runTransaction(coinRef, (currentCoins) => {
-      // currentCoins may be null on first write
-      return (currentCoins ?? 0) + coinsToAdd;
+export function updateUserRubies(userId: string, rubiesToAdd: number): Promise<void> {
+    const coinRef = ref(database, `users/${userId}/rubies`);
+    return runTransaction(coinRef, (currentRubies) => {
+      // currentRubies may be null on first write
+      return (currentRubies ?? 0) + rubiesToAdd;
     })
     .then(result => {
       if (!result.committed) {
-        console.warn("Coins transaction aborted");
+        console.warn("Rubies transaction aborted");
       }
     })
     .catch(err => {
-      console.error("Failed to update coins:", err);
+      console.error("Failed to update rubies:", err);
       throw err;
     });
   }
 
-export function updateUserHighScore(userId: string, newHighScore: number) {
-    return update(ref(database, `users/${userId}`), { high_score: newHighScore });
+export function updateUserHighScore(userId: string, gameId: string, newHighScore: number): Promise<void> {
+    const highScoreRef = ref(database, `users/${userId}/high_scores/${gameId}`);
+    return runTransaction(highScoreRef, (currentHighScore) => {
+        // Only update if the new score is higher than the current high score
+        const current = currentHighScore ?? 0;
+        return newHighScore > current ? newHighScore : current;
+    })
+    .then(result => {
+        if (!result.committed) {
+            console.warn(`High score transaction aborted for ${gameId}`);
+        }
+    })
+    .catch(err => {
+        console.error(`Failed to update high score for ${gameId}:`, err);
+        throw err;
+    });
 }
 
 // Subscribe to changes
 export function subscribeToUser(userId: string, callback: (data: any) => void) {
     return onValue(ref(database, `users/${userId}`), snap => callback(snap.val()));
+}
+
+// Get top 10 users' high scores for a specific game (for leaderboards)
+export function getGameLeaderboard(gameId: string): Promise<Array<{userId: string, score: number}>> {
+    return get(ref(database, 'users')).then(snap => {
+        const users = snap.val();
+        if (!users) {
+            return [];
+        }
+        
+        const leaderboard: Array<{userId: string, score: number}> = [];
+        
+        // Extract high scores for the specific game from all users
+        Object.entries(users).forEach(([userId, userData]: [string, any]) => {
+            if (userData?.high_scores?.[gameId]) {
+                leaderboard.push({
+                    userId,
+                    score: userData.high_scores[gameId]
+                });
+            }
+        });
+        
+        // Sort by score in descending order (highest first)
+        leaderboard.sort((a, b) => b.score - a.score);
+        
+        return leaderboard.slice(0, 10);
+    });
 }

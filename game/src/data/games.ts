@@ -18,7 +18,7 @@ export const GAMES: GameData[] = [
     name: 'Cosmo Climb',
     description: 'Climb up the plaforms through space, avoid monsters and collect powerups',
     photo: '/assets/game-thumbnails/cosmoClimbIcon.png',
-    mapPosition: { x: 850, y: 80 },
+    mapPosition: { x: 706, y: 250 },
     sceneClass: CosmoClimbScene
   },
   {
@@ -26,7 +26,7 @@ export const GAMES: GameData[] = [
     name: 'Animal Finder',
     description: 'Find the wanted animals on the screen',
     photo: '/assets/game-thumbnails/animalFinderLogo.png',
-    mapPosition: { x: 100, y: 570 },
+    mapPosition: { x: 498, y: 766 },
     sceneClass: AnimalFinderGame
   },
   {
@@ -34,7 +34,7 @@ export const GAMES: GameData[] = [
     name: 'Float Frenzy',
     description: 'Float through the ocean, avoid bombs and collect powerups',
     photo: '/assets/game-thumbnails/floatFrenzyIcon.png',
-    mapPosition: { x: 20, y: 80 }, // edit to be where you want it on the map
+    mapPosition: { x: 241, y: 709 }, // edit to be where you want it on the map
     sceneClass: FloatFrenzy
   },
   {
@@ -42,7 +42,7 @@ export const GAMES: GameData[] = [
     name: 'Quick Tap Poker',
     description: 'Tap 5 cards in 5 seconds to make the best poker hand!',
     photo: '/assets/game-thumbnails/quickTapPokerIcon.png',
-    mapPosition: { x: 450, y: 100 }, // Position in middle of map
+    mapPosition: { x: 230, y: 281 }, // Position in middle of map
     sceneClass: QuickTapPoker
   }
 ];

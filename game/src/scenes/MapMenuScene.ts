@@ -1,12 +1,12 @@
 import { Application, Container, Sprite, Graphics, Assets, Text } from 'pixi.js';
 import { GAMES, GameData } from '../data/games';
 import { GamePopup } from '../components/GamePopup';
-import { getUserCoins, subscribeToUser } from "../firebase";
+import { getUserRubies, subscribeToUser } from "../firebase";
 
 export class MapMenuScene extends Container {
   private mapContainer!: Container;
   private mapSprite!: Sprite;
-  private gameDots: Map<string, Graphics> = new Map();
+  private gameDots: Map<string, Sprite> = new Map();
   private gameLabels: Map<string, Text> = new Map();
   private currentPopup: GamePopup | null = null;
   private outsideClickHandler: (event: any) => void;
@@ -22,7 +22,7 @@ export class MapMenuScene extends Container {
   private mapStart = { x: 0, y: 0 };
   
   // Zoom variables
-  private zoomLevel = 1.5; // zoom level on map
+  private zoomLevel = 1; // zoom level on map (will be calculated dynamically)
 
   constructor(
     private readonly app: Application,
@@ -31,9 +31,29 @@ export class MapMenuScene extends Container {
   ) {
     super();
     this.outsideClickHandler = this.handleOutsideClick.bind(this);
+
+    // Add window resize event listener
+    window.addEventListener('resize', this.resize.bind(this));
+
+    this.calculateZoomLevel();
     this.createMap();
     this.setupScrolling();
     this.createCoinDisplay();
+  }
+
+  private calculateZoomLevel() {
+    const mapWidth = 1024;
+    const mapHeight = 1024;
+    
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    const zoomForWidth = viewportWidth / mapWidth;
+    const zoomForHeight = viewportHeight / mapHeight;
+
+    this.zoomLevel = Math.max(zoomForWidth, zoomForHeight);
+    
+    this.zoomLevel = Math.max(this.zoomLevel, 0.1);
   }
 
   private async createMap() {
@@ -77,15 +97,15 @@ export class MapMenuScene extends Container {
       this.coinContainer.addChild(this.rubySprite);
       
       // Create coin text
-      const coins = await getUserCoins(this.userId);
+      const coins = await getUserRubies(this.userId);
       this.coinText = new Text(`${coins}`, {
-        fontFamily: 'Montserrat',
-        fontSize: 24,
+        fontFamily: 'Chewy',
+        fontSize: 28,
         fill: 0xffffff,
         fontWeight: 'bold'
       });
       this.coinText.x = 40; // Position after ruby sprite
-      this.coinText.y = 5;
+      this.coinText.y = 0;
       this.coinContainer.addChild(this.coinText);
       
       // Position dynamically based on text width
@@ -110,42 +130,58 @@ export class MapMenuScene extends Container {
     }
   }
 
-  private createGameDots() {
+  private async createGameDots() {
+    // Load the pin texture
+    const pinTexture = await Assets.load('/assets/sprites/pin.png');
+  
     GAMES.forEach(game => {
-      const dot = new Graphics()
-        .beginFill(0xe74c3c)
-        .drawCircle(0, 0, 8)
-        .endFill()
-        .lineStyle(2, 0xffffff)
-        .drawCircle(0, 0, 8);
-
-      // Position dots at their map coordinates (not scaled)
-      dot.x = game.mapPosition.x;
-      dot.y = game.mapPosition.y;
+      // Create pin sprite
+      const pin = new Sprite(pinTexture);
+      pin.anchor.set(0.5); // Center the anchor point
+      pin.scale.set(0.05); // Make pins smaller
       
-      dot.eventMode = 'static';
-      dot.cursor = 'pointer';
-      dot.on('pointerdown', () => {
-        console.log('Game dot clicked:', game.name);
-        // Convert dot position to screen coordinates for popup
-        const globalPos = this.mapContainer.toGlobal({ x: dot.x, y: dot.y });
+      // Position pins at their map coordinates
+      pin.x = game.mapPosition.x;
+      pin.y = game.mapPosition.y;
+      
+      // Add interactivity
+      pin.eventMode = 'static';
+      pin.cursor = 'pointer';
+      pin.on('pointerdown', () => {
+        console.log('Game pin clicked:', game.name);
+        const globalPos = this.mapContainer.toGlobal({ x: pin.x, y: pin.y });
         this.showGamePopup(game, globalPos.x, globalPos.y);
       });
-
-      this.gameDots.set(game.id, dot);
-      this.mapContainer.addChild(dot);
+      
+      // Add subtle pulsing animation
+      this.addPulseAnimation(pin);
+      
+      // Store and add to container
+      this.gameDots.set(game.id, pin);
+      this.mapContainer.addChild(pin);
 
       // Add game name label
       const label = new Text(game.name, {
-        fontSize: 12,
+        fontFamily: 'Chewy',
+        fontSize: 24, // Slightly smaller font
         fill: 0xffffff,
-        fontWeight: 'bold'
+        fontWeight: 'bold',
       });
-      label.x = dot.x + 15;
-      label.y = dot.y - 8;
+      label.anchor.set(0, 0.5); // Center vertically, align left
+      label.x = pin.x + 15; // Small gap from the pin
+      label.y = pin.y + 2; // Align vertically with pin
       this.mapContainer.addChild(label);
       this.gameLabels.set(game.id, label);
     });
+  }
+
+  private addPulseAnimation(sprite: Sprite) {
+    const pulse = () => {
+      const scale = 0.08 + Math.sin(Date.now() * 0.003) * 0.01; // Subtle pulse
+      sprite.scale.set(scale);
+      requestAnimationFrame(pulse);
+    };
+    pulse();
   }
 
   private setupScrolling() {
@@ -157,6 +193,9 @@ export class MapMenuScene extends Container {
     this.on('pointermove', this.onPointerMove.bind(this));
     this.on('pointerup', this.onPointerUp.bind(this));
     this.on('pointerupoutside', this.onPointerUp.bind(this));
+    
+    // Add wheel/touchpad scrolling support
+    this.setupWheelScrolling();
   }
 
   private onPointerDown(event: any) {
@@ -176,6 +215,48 @@ export class MapMenuScene extends Container {
     let newX = this.mapStart.x + deltaX;
     let newY = this.mapStart.y + deltaY;
     
+    // Apply the same boundary constraints as wheel scrolling
+    const constrainedPosition = this.constrainMapPosition(newX, newY);
+    
+    this.mapContainer.x = constrainedPosition.x;
+    this.mapContainer.y = constrainedPosition.y;
+  }
+
+  private onPointerUp() {
+    this.isDragging = false;
+  }
+
+  private setupWheelScrolling() {
+    // Add wheel event listener to the canvas element
+    const canvas = this.app.canvas;
+    canvas.addEventListener('wheel', this.onWheel.bind(this), { passive: false });
+  }
+
+  private onWheel(event: WheelEvent) {
+    // Prevent default scrolling behavior
+    event.preventDefault();
+    
+    // Get scroll delta (normalize for different devices)
+    const deltaX = event.deltaX;
+    const deltaY = event.deltaY;
+    
+    // Apply scroll sensitivity (adjust as needed)
+    const scrollSensitivity = 1.0;
+    const scrollX = -deltaX * scrollSensitivity;
+    const scrollY = -deltaY * scrollSensitivity;
+    
+    // Calculate new position
+    let newX = this.mapContainer.x + scrollX;
+    let newY = this.mapContainer.y + scrollY;
+    
+    // Apply the same boundary constraints as drag scrolling
+    const constrainedPosition = this.constrainMapPosition(newX, newY);
+    
+    this.mapContainer.x = constrainedPosition.x;
+    this.mapContainer.y = constrainedPosition.y;
+  }
+
+  private constrainMapPosition(newX: number, newY: number): { x: number, y: number } {
     // Constrain the map to stay within bounds (accounting for zoom)
     const mapWidth = 1024 * this.zoomLevel;
     const mapHeight = 1024 * this.zoomLevel;
@@ -202,12 +283,7 @@ export class MapMenuScene extends Container {
       newY = viewportHeight - mapHeight;
     }
     
-    this.mapContainer.x = newX;
-    this.mapContainer.y = newY;
-  }
-
-  private onPointerUp() {
-    this.isDragging = false;
+    return { x: newX, y: newY };
   }
 
   private centerMap() {
@@ -303,6 +379,24 @@ export class MapMenuScene extends Container {
     // Reposition coin display in upper right corner
     if (this.coinContainer) {
       this.updateCoinDisplayPosition();
+    }
+
+    // Recalculate zoom level for new screen size
+    const oldZoomLevel = this.zoomLevel;
+    this.calculateZoomLevel();
+    
+    // Update map container scale if it exists
+    if (this.mapContainer) {
+      this.mapContainer.scale.set(this.zoomLevel);
+      
+      // Recenter the map to maintain a good position after resize
+      this.centerMap();
+      
+      // Update coin display position
+      if (this.coinContainer) {
+        this.coinContainer.x = window.innerWidth - 80;
+        this.coinContainer.y = 20;
+      }
     }
   }
 } 

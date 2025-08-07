@@ -2,7 +2,7 @@ import * as PIXI from 'pixi.js';
 import { PlayingCard } from './PlayingCard';
 import { PokerHandEvaluator } from './PokerHandEvaluator';
 import { ResizableScene } from '../../SceneManager';
-import { getUserCoins, updateUserCoins } from '../../../firebase';
+import { getUserRubies, updateUserRubies } from '../../../firebase';
 
 export class QuickTapPoker extends PIXI.Container implements ResizableScene {
   private app: PIXI.Application;
@@ -481,7 +481,7 @@ export class QuickTapPoker extends PIXI.Container implements ResizableScene {
     
     // Update user coins
     try {
-      await updateUserCoins(this.userId, this.score);
+      await updateUserRubies(this.userId, this.score);
     } catch (error) {
       console.error('Failed to update user coins:', error);
     }
