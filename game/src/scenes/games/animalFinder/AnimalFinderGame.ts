@@ -21,7 +21,7 @@ export class AnimalFinderGame extends Container implements ResizableScene {
 
   private animals: Animal[] = [];
   private gameTimer!: Text;
-  private timeRemaining: number = 15;
+  private timeRemaining: number = 10;
   private gameState: 'playing' | 'won' | 'lost' = 'playing';
   private background!: Graphics;
   private resultText!: Text;
@@ -320,8 +320,8 @@ export class AnimalFinderGame extends Container implements ResizableScene {
     this.app.ticker.remove(this.gameLoop);
 
     if (won) {
-      // Add 15 points for winning the round
-      this.currentScore += 15;
+      // Add 5 points for winning the round
+      this.currentScore += 5;
       this.scoreText.text = `${this.currentScore}`;
       this.round++;
       // Add restart functionality for win
@@ -365,7 +365,7 @@ export class AnimalFinderGame extends Container implements ResizableScene {
     this.animals = [];
 
     // Reset game state
-    this.timeRemaining = 15;
+    this.timeRemaining = 10;
     this.gameState = 'playing';
     this.resultText.visible = false;
     this.lastTime = 0; // Reset lastTime to fix timer issue
