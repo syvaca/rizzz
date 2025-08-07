@@ -65,6 +65,7 @@ export class GamePopup extends Container {
 
     // Create title - centered at top
     this.titleText = new Text(gameData.name, {
+      fontFamily: 'Chewy',
       fontSize: 16,
       fill: 0xffffff,
       fontWeight: 'bold'
@@ -102,6 +103,7 @@ export class GamePopup extends Container {
 
     // Create play button text
     this.playButtonText = new Text('PLAY', {
+      fontFamily: 'Chewy',
       fontSize: 14,
       fill: 0xffffff,
       fontWeight: 'bold'
