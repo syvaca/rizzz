@@ -50,6 +50,10 @@ async function bootstrap() {
     { alias: 'boulderBashVisuals', src: '/assets/sprites/boulderBashSprites/boulderBashVisuals.json' },
     { alias: 'boulderBashBackground', src: '/assets/sprites/boulderBashSprites/boulderBashBackground.png' },
     { alias: 'hearts', src: '/assets/sprites/boulderBashSprites/hearts.json' },
+    
+    // Gem Hunt
+    { alias: 'gemHuntVisuals', src: '/assets/sprites/gemHuntSprites/gemHuntSprites.json' },
+    { alias: 'gemHuntBackground', src: '/assets/sprites/gemHuntSprites/gemHuntBackground.png' },
 
   ]);
 

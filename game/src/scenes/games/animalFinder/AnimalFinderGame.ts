@@ -21,7 +21,7 @@ export class AnimalFinderGame extends Container implements ResizableScene {
 
   private animals: Animal[] = [];
   private gameTimer!: Text;
-  private timeRemaining: number = 15;
+  private timeRemaining: number = 10;
   private gameState: 'playing' | 'won' | 'lost' = 'playing';
   private background!: Graphics;
   private resultText!: Text;
@@ -320,8 +320,8 @@ export class AnimalFinderGame extends Container implements ResizableScene {
     this.app.ticker.remove(this.gameLoop);
 
     if (won) {
-      // Add 15 points for winning the round
-      this.currentScore += 15;
+      // Add 5 points for winning the round
+      this.currentScore += 5;
       this.scoreText.text = `${this.currentScore}`;
       this.round++;
       // Add restart functionality for win
@@ -332,9 +332,7 @@ export class AnimalFinderGame extends Container implements ResizableScene {
       // Game over - add score to user's rubies
       if (this.currentScore > 0) {
         try {
-          const currentRubies = await getUserRubies(this.userId);
-          await updateUserRubies(this.userId, currentRubies + this.currentScore);
-          console.log(`Added ${this.currentScore} points to user's rubies. New total: ${currentRubies + this.currentScore}`);
+          await updateUserRubies(this.userId, this.currentScore);
         } catch (error) {
           console.error('Failed to update user rubies:', error);
         }
@@ -365,7 +363,7 @@ export class AnimalFinderGame extends Container implements ResizableScene {
     this.animals = [];
 
     // Reset game state
-    this.timeRemaining = 15;
+    this.timeRemaining = 10;
     this.gameState = 'playing';
     this.resultText.visible = false;
     this.lastTime = 0; // Reset lastTime to fix timer issue

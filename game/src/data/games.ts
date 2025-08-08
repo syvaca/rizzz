@@ -3,6 +3,7 @@ import { CosmoClimbScene } from '../scenes/games/cosmoClimb/CosmoClimb';
 import { FloatFrenzy } from '../scenes/games/floatFrenzy/FloatFrenzy';
 import { QuickTapPoker } from '../scenes/games/quickTapPoker/QuickTapPoker';
 import { BoulderBashScene } from '../scenes/games/boulderBash/BoulderBash';
+import { GemHuntGame } from '../scenes/games/gemHunt/gemHunt';
 
 export interface GameData {
   id: string;
@@ -26,7 +27,7 @@ export const GAMES: GameData[] = [
     id: 'animal-finder', 
     name: 'Animal Finder',
     description: 'Find the wanted animals on the screen',
-    photo: '/assets/game-thumbnails/animalFinderLogo.png',
+    photo: '/assets/game-thumbnails/animalFinderIcon.png',
     mapPosition: { x: 498, y: 766 },
     sceneClass: AnimalFinderGame
   },
@@ -53,7 +54,15 @@ export const GAMES: GameData[] = [
     photo: '/assets/game-thumbnails/boulderBashIcon.png',
     mapPosition: { x: 486, y: 587 }, // Position in middle of map
     sceneClass: BoulderBashScene
-  }
+  },
+  {
+    id: 'gem-hunt',
+    name: 'Gem Hunt',
+    description: 'Find the gems and avoid the skulls',
+    photo: '/assets/game-thumbnails/gemHuntIcon.png',
+    mapPosition: { x: 670, y: 460 }, // Position in middle of map
+    sceneClass: GemHuntGame
+  },
 ];
 
 export function getGameById(id: string): GameData | undefined {

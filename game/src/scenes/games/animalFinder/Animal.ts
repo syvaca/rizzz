@@ -34,8 +34,8 @@ export class Animal extends Sprite {
     this.x = Math.random() * (window.innerWidth - 64);
     this.y = TOP_UI_HEIGHT + Math.random() * (window.innerHeight - TOP_UI_HEIGHT - 64);
 
-    // Set random z-index (depth)
-    this.zIndex = Math.random() * 1000;
+    // Set random z-index (depth) - keep very low to stay below UI elements
+    this.zIndex = Math.random() * 10;
 
     // Enable interaction
     this.eventMode = 'static';

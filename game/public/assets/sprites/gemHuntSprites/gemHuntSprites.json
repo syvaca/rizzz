@@ -1,0 +1,295 @@
+{
+	"frames": {
+		"audio_mute.png": {
+			"frame": {
+				"x": 1,
+				"y": 1,
+				"w": 455,
+				"h": 375
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 455,
+				"h": 375
+			},
+			"sourceSize": {
+				"w": 455,
+				"h": 375
+			}
+		},
+		"audio_unmute.png": {
+			"frame": {
+				"x": 458,
+				"y": 1,
+				"w": 427,
+				"h": 374
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 427,
+				"h": 374
+			},
+			"sourceSize": {
+				"w": 427,
+				"h": 374
+			}
+		},
+		"diamond.png": {
+			"frame": {
+				"x": 887,
+				"y": 1,
+				"w": 436,
+				"h": 342
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 436,
+				"h": 342
+			},
+			"sourceSize": {
+				"w": 436,
+				"h": 342
+			}
+		},
+		"filled heart.png": {
+			"frame": {
+				"x": 1325,
+				"y": 1,
+				"w": 395,
+				"h": 329
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 395,
+				"h": 329
+			},
+			"sourceSize": {
+				"w": 395,
+				"h": 329
+			}
+		},
+		"gameboard.png": {
+			"frame": {
+				"x": 887,
+				"y": 345,
+				"w": 862,
+				"h": 796
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 862,
+				"h": 796
+			},
+			"sourceSize": {
+				"w": 862,
+				"h": 796
+			}
+		},
+		"gold.png": {
+			"frame": {
+				"x": 1722,
+				"y": 1,
+				"w": 330,
+				"h": 276
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 330,
+				"h": 276
+			},
+			"sourceSize": {
+				"w": 330,
+				"h": 276
+			}
+		},
+		"play button.png": {
+			"frame": {
+				"x": 1,
+				"y": 1143,
+				"w": 671,
+				"h": 677
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 671,
+				"h": 677
+			},
+			"sourceSize": {
+				"w": 671,
+				"h": 677
+			}
+		},
+		"power up potion.png": {
+			"frame": {
+				"x": 674,
+				"y": 1143,
+				"w": 603,
+				"h": 812
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 603,
+				"h": 812
+			},
+			"sourceSize": {
+				"w": 603,
+				"h": 812
+			}
+		},
+		"powerup bomb.png": {
+			"frame": {
+				"x": 1279,
+				"y": 1143,
+				"w": 807,
+				"h": 906
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 807,
+				"h": 906
+			},
+			"sourceSize": {
+				"w": 807,
+				"h": 906
+			}
+		},
+		"powerup shield.png": {
+			"frame": {
+				"x": 2054,
+				"y": 1,
+				"w": 870,
+				"h": 882
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 870,
+				"h": 882
+			},
+			"sourceSize": {
+				"w": 870,
+				"h": 882
+			}
+		},
+		"skull.png": {
+			"frame": {
+				"x": 2088,
+				"y": 885,
+				"w": 410,
+				"h": 419
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 410,
+				"h": 419
+			},
+			"sourceSize": {
+				"w": 410,
+				"h": 419
+			}
+		},
+		"tile.png": {
+			"frame": {
+				"x": 2500,
+				"y": 885,
+				"w": 466,
+				"h": 470
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 466,
+				"h": 470
+			},
+			"sourceSize": {
+				"w": 466,
+				"h": 470
+			}
+		},
+		"title.png": {
+			"frame": {
+				"x": 1,
+				"y": 2051,
+				"w": 989,
+				"h": 134
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 989,
+				"h": 134
+			},
+			"sourceSize": {
+				"w": 989,
+				"h": 134
+			}
+		},
+		"unfilled heart.png": {
+			"frame": {
+				"x": 2088,
+				"y": 1357,
+				"w": 394,
+				"h": 330
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 394,
+				"h": 330
+			},
+			"sourceSize": {
+				"w": 394,
+				"h": 330
+			}
+		}
+	},
+	"meta": {
+		"app": "http://www.codeandweb.com/texturepacker",
+		"version": "1.0",
+		"image": "gemHuntSprites.png",
+		"format": "RGBA8888",
+		"size": {
+			"w": 2967,
+			"h": 2186
+		},
+		"scale": "1"
+	}
+}
