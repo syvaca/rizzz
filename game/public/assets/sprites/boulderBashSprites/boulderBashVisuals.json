@@ -1,0 +1,215 @@
+{
+	"frames": {
+		"boulder-1.png": {
+			"frame": {
+				"x": 1,
+				"y": 1,
+				"w": 251,
+				"h": 533
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 251,
+				"h": 533
+			},
+			"sourceSize": {
+				"w": 251,
+				"h": 533
+			}
+		},
+		"boulder-2.png": {
+			"frame": {
+				"x": 254,
+				"y": 1,
+				"w": 223,
+				"h": 631
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 223,
+				"h": 631
+			},
+			"sourceSize": {
+				"w": 223,
+				"h": 631
+			}
+		},
+		"boulder-3.png": {
+			"frame": {
+				"x": 479,
+				"y": 1,
+				"w": 257,
+				"h": 544
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 257,
+				"h": 544
+			},
+			"sourceSize": {
+				"w": 257,
+				"h": 544
+			}
+		},
+		"explosion.png": {
+			"frame": {
+				"x": 738,
+				"y": 1,
+				"w": 901,
+				"h": 762
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 901,
+				"h": 762
+			},
+			"sourceSize": {
+				"w": 901,
+				"h": 762
+			}
+		},
+		"robot-1.png": {
+			"frame": {
+				"x": 1,
+				"y": 765,
+				"w": 922,
+				"h": 919
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 922,
+				"h": 919
+			},
+			"sourceSize": {
+				"w": 922,
+				"h": 919
+			}
+		},
+		"robot-2.png": {
+			"frame": {
+				"x": 925,
+				"y": 765,
+				"w": 933,
+				"h": 927
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 933,
+				"h": 927
+			},
+			"sourceSize": {
+				"w": 933,
+				"h": 927
+			}
+		},
+		"robot-3.png": {
+			"frame": {
+				"x": 1860,
+				"y": 1,
+				"w": 925,
+				"h": 924
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 925,
+				"h": 924
+			},
+			"sourceSize": {
+				"w": 925,
+				"h": 924
+			}
+		},
+		"robot-4.png": {
+			"frame": {
+				"x": 1860,
+				"y": 927,
+				"w": 976,
+				"h": 521
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 976,
+				"h": 521
+			},
+			"sourceSize": {
+				"w": 976,
+				"h": 521
+			}
+		},
+		"ruby.png": {
+			"frame": {
+				"x": 2787,
+				"y": 1,
+				"w": 285,
+				"h": 269
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 285,
+				"h": 269
+			},
+			"sourceSize": {
+				"w": 285,
+				"h": 269
+			}
+		},
+		"target.png": {
+			"frame": {
+				"x": 1860,
+				"y": 1450,
+				"w": 922,
+				"h": 1104
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 922,
+				"h": 1104
+			},
+			"sourceSize": {
+				"w": 922,
+				"h": 1104
+			}
+		}
+	},
+	"meta": {
+		"app": "http://www.codeandweb.com/texturepacker",
+		"version": "1.0",
+		"image": "boulderBashVisuals.png",
+		"format": "RGBA8888",
+		"size": {
+			"w": 3073,
+			"h": 2555
+		},
+		"scale": "1"
+	}
+}
