@@ -2,7 +2,7 @@ import { AnimalFinderGame } from '../scenes/games/animalFinder/AnimalFinderGame'
 import { CosmoClimbScene } from '../scenes/games/cosmoClimb/CosmoClimb';
 import { FloatFrenzy } from '../scenes/games/floatFrenzy/FloatFrenzy';
 import { QuickTapPoker } from '../scenes/games/quickTapPoker/QuickTapPoker';
-import { BoulderBashScene } from '../scenes/games/boulderBash/boulderBash';
+import { BoulderBashScene } from '../scenes/games/boulderBash/BoulderBash';
 
 export interface GameData {
   id: string;

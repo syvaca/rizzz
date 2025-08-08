@@ -160,44 +160,24 @@
 				"h": 521
 			}
 		},
-		"ruby.png": {
-			"frame": {
-				"x": 2787,
-				"y": 1,
-				"w": 285,
-				"h": 269
-			},
-			"rotated": false,
-			"trimmed": false,
-			"spriteSourceSize": {
-				"x": 0,
-				"y": 0,
-				"w": 285,
-				"h": 269
-			},
-			"sourceSize": {
-				"w": 285,
-				"h": 269
-			}
-		},
 		"target.png": {
 			"frame": {
 				"x": 1860,
 				"y": 1450,
-				"w": 922,
-				"h": 1104
+				"w": 916,
+				"h": 919
 			},
 			"rotated": false,
 			"trimmed": false,
 			"spriteSourceSize": {
 				"x": 0,
 				"y": 0,
-				"w": 922,
-				"h": 1104
+				"w": 916,
+				"h": 919
 			},
 			"sourceSize": {
-				"w": 922,
-				"h": 1104
+				"w": 916,
+				"h": 919
 			}
 		}
 	},
@@ -207,8 +187,8 @@
 		"image": "boulderBashVisuals.png",
 		"format": "RGBA8888",
 		"size": {
-			"w": 3073,
-			"h": 2555
+			"w": 2837,
+			"h": 2370
 		},
 		"scale": "1"
 	}

@@ -2,7 +2,7 @@ import { Assets, AnimatedSprite, Application, Container, Graphics, Sprite, Sprit
 import { playExplosionSound, playAlienPadSound } from './audio';
 import { ResizableScene } from '../../SceneManager';
 import type { TrackMeta } from './types';
-import { getUserHighScore } from "../../../firebase";
+import { getUserHighScore, updateUserRubies } from "../../../firebase";
 
 export interface BoulderBashParams {
   audioTrack: string;
@@ -16,7 +16,7 @@ export interface BoulderBashParams {
 export class BoulderBashScene extends Container implements ResizableScene {
   public onRoundComplete?: (rubiesEarned: number, streaks: string[], win: boolean) => void;
   /* ─────────────────────────────── Config ──────────────────────────────── */
-  private readonly BEAT_DURATION_MS: number; // duration of a quarter-note beat
+  private BEAT_DURATION_MS: number; // duration of a quarter-note beat
   private readonly LEAD_TIME_BEATS = 1; // cue appears this many beats early
   private readonly PAD_RELEASE_MS = 300; // pad stays lit longer for more forgiving gameplay
   private readonly debounceBeats = 1; // prevent double cues per loop
@@ -92,17 +92,28 @@ export class BoulderBashScene extends Container implements ResizableScene {
 
   /* audio */
   private readonly backingTrack: HTMLAudioElement;
+  private readonly params: BoulderBashParams = {
+    audioTrack: '/assets/audio/boulder-bash-track.mp3', // You'll need to provide the actual audio file
+    meta: undefined, // No metadata for now
+    bpm: 120, // Default BPM
+    round: 1,
+    difficulty: 'medium' as const,
+    bettingMode: 'standard'
+  };
 
+
+  
   /* ─────────────────────────────── Betting ──────────────────────────────── */
   private pointMultiplier: number = 1;
   private timeModifier: number = 1;
   private goodHit: boolean = false;
   private bettingMode: string = "standard";
 
-  constructor(private readonly app: Application,
-              private readonly user_id: string,
-              private readonly params: BoulderBashParams,
-              private readonly onExit?: () => void) {
+  constructor(
+    private readonly app: Application,
+    private readonly user_id: string,
+    private readonly onStart: () => void,
+  ) {
     super();
 
     // Allow child sprites to receive pointer events
@@ -116,7 +127,7 @@ export class BoulderBashScene extends Container implements ResizableScene {
     this.beatsTarget = 32; // params.meta?.onsets?.length ?? 32;
 
     /* Pre-processing – build accent pattern */
-    this.accentMap = this.buildAccentPattern(params.difficulty);
+    this.accentMap = this.buildAccentPattern(this.params.difficulty);
 
     /* Visuals */
     this.background = Sprite.from('boulderBashBackground');
@@ -131,7 +142,7 @@ export class BoulderBashScene extends Container implements ResizableScene {
     const alienSprite = new Sprite(Texture.from('robot-1.png'));
 
     alienSprite.anchor.set(0.5, 1); // center horizontally, bottom aligned
-    alienSprite.scale.set(0.5); // adjust size to taste
+    alienSprite.scale.set(0.1); // adjust size to taste
     this.addChild(alienSprite);
     this.alienSprite = alienSprite; // optionally store as a member if needed later
     this.alienTextures = [
@@ -146,15 +157,21 @@ export class BoulderBashScene extends Container implements ResizableScene {
     
 
     /* Audio */
-    this.backingTrack = new Audio(params.audioTrack);
+    this.backingTrack = new Audio(this.params.audioTrack);
     this.backingTrack.preload = 'auto';
     this.backingTrack.loop = true;
+    
+    // Use a fallback BPM if the provided one is invalid
+    const bpm = (typeof this.params.bpm === 'number' && !isNaN(this.params.bpm) && this.params.bpm > 0) ? this.params.bpm : 90;
+    this.BEAT_DURATION_MS = (60000 / bpm);
 
     /* Betting Settings */
     this.setBettingMode();
 
-    this.BEAT_DURATION_MS = (60000 / params.bpm) / this.backingTrack.playbackRate;
-    console.log(this.BEAT_DURATION_MS);
+    // Adjust beat duration for playback rate changes
+    const playbackRate = this.backingTrack.playbackRate || 1; // Fallback to 1 if not set
+    this.BEAT_DURATION_MS = this.BEAT_DURATION_MS / playbackRate;
+    console.log('Final BEAT_DURATION_MS:', this.BEAT_DURATION_MS, 'playbackRate:', playbackRate);
 
     /* Bind input */
     this.pads.forEach((pad, idx) => {
@@ -311,7 +328,7 @@ export class BoulderBashScene extends Container implements ResizableScene {
 
     // position score to the right of the ruby
     this.scoreText.x = this.scoreRuby.width + 8;
-    this.scoreText.y = (this.scoreRuby.height - this.scoreText.height) / 2;
+    this.scoreText.y = (this.scoreRuby.height - this.scoreText.height) / 2 + 10;
     this.scoreContainer.addChild(this.scoreText);
     
     this.addChild(this.scoreContainer);
@@ -414,7 +431,7 @@ export class BoulderBashScene extends Container implements ResizableScene {
     const desiredScale = minDimension / 1000; // tweak 1000 to adjust scale responsiveness
     const finalScale = Math.min(desiredScale, maxScale);
   
-    this.alienSprite.scale.set(finalScale);
+    this.alienSprite.scale.set(finalScale*.2);
   
     this.alienSprite.x = width / 2;
   
@@ -544,7 +561,7 @@ export class BoulderBashScene extends Container implements ResizableScene {
     this.backingTrack.currentTime = startOffset;
     this.backingTrack.volume = 1;
     void this.backingTrack.play();
-    this.startPerfTime = performance.now();
+    this.startPerfTime = performance.now(); 
 
     // Start round immediately so misses count from the beginning
     this.roundStarted = true;
@@ -575,7 +592,7 @@ export class BoulderBashScene extends Container implements ResizableScene {
     }
   }
 
-  private update(_ticker: any) {
+  private async update(_ticker: any) {
     if (this.sceneEnded) return;
     const now = performance.now();
     this.tileMovement(now);
@@ -656,11 +673,11 @@ export class BoulderBashScene extends Container implements ResizableScene {
       entry.sprite!.y = this.TILE_SPAWN_Y + (entry.padY - this.TILE_SPAWN_Y) * t;
 
       // once it reaches the pad, remove the graphic
-      if (t >= 1) {
-        this.tileLayer.removeChild(entry.sprite!);
+      if (t >= 1 && entry.sprite) {
+        this.tileLayer.removeChild(entry.sprite);
         entry.sprite.visible = false;
         this.scheduledTiles.splice(i, 1);
-        entry.sprite!.destroy();
+        entry.sprite.destroy();
         continue;
       }
     }
@@ -868,7 +885,10 @@ export class BoulderBashScene extends Container implements ResizableScene {
     step();
   }
 
-  private showOutOfLivesOverlay() {
+  private async showOutOfLivesOverlay() {
+
+    await updateUserRubies(this.user_id, this.score);
+
     // Clear asteroids (tileLayer)
     this.scheduledTiles.forEach(entry => {
       if (entry.sprite) {
@@ -916,11 +936,13 @@ export class BoulderBashScene extends Container implements ResizableScene {
     requestAnimationFrame(fadeOut);
   
     setTimeout(() => {
-      this.onRoundComplete?.(this.score, this.combos, false);
+      this.onStart();
     }, 2000);
   }
 
   private async showWinOverlay() {
+
+    await updateUserRubies(this.user_id, this.score);
 
     // Clear asteroids (tileLayer)
     this.scheduledTiles.forEach(entry => {
@@ -983,7 +1005,7 @@ export class BoulderBashScene extends Container implements ResizableScene {
     }
   
     setTimeout(() => {
-      this.onRoundComplete?.(this.score, this.combos, true);
+      this.onStart();
     }, 2000);
   }
   
