@@ -2,6 +2,7 @@ import { AnimalFinderGame } from '../scenes/games/animalFinder/AnimalFinderGame'
 import { CosmoClimbScene } from '../scenes/games/cosmoClimb/CosmoClimb';
 import { FloatFrenzy } from '../scenes/games/floatFrenzy/FloatFrenzy';
 import { QuickTapPoker } from '../scenes/games/quickTapPoker/QuickTapPoker';
+import { BoulderBashScene } from '../scenes/games/boulderBash/BoulderBash';
 import { GemHuntGame } from '../scenes/games/gemHunt/gemHunt';
 
 export interface GameData {
@@ -45,6 +46,14 @@ export const GAMES: GameData[] = [
     photo: '/assets/game-thumbnails/quickTapPokerIcon.png',
     mapPosition: { x: 230, y: 281 }, // Position in middle of map
     sceneClass: QuickTapPoker
+  },
+  {
+    id: 'boulder-bash',
+    name: 'Boulder Bash',
+    description: 'Destroy the boulders before they hit you!',
+    photo: '/assets/game-thumbnails/boulderBashIcon.png',
+    mapPosition: { x: 486, y: 587 }, // Position in middle of map
+    sceneClass: BoulderBashScene
   },
   {
     id: 'gem-hunt',
