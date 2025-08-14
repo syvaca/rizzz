@@ -4,6 +4,8 @@ import { FloatFrenzy } from '../scenes/games/floatFrenzy/FloatFrenzy';
 import { QuickTapPoker } from '../scenes/games/quickTapPoker/QuickTapPoker';
 import { BoulderBashScene } from '../scenes/games/boulderBash/BoulderBash';
 import { GemHuntGame } from '../scenes/games/gemHunt/gemHunt';
+import { QuickTapWords } from '../scenes/games/quickTapWords/QuickTapWords';
+import { QuickTapNumbers } from '../scenes/games/quickTapNumbers/QuickTapNumbers';
 
 export interface GameData {
   id: string;
@@ -46,6 +48,22 @@ export const GAMES: GameData[] = [
     photo: '/assets/game-thumbnails/quickTapPokerIcon.png',
     mapPosition: { x: 230, y: 281 }, // Position in middle of map
     sceneClass: QuickTapPoker
+  },
+  {
+    id: 'quick-tap-words',
+    name: 'Quick Tap Words',
+    description: 'Form the longest valid word in 15 seconds using letter tiles.',
+    photo: '/assets/game-thumbnails/quickTapWordsIcon.png',
+    mapPosition: { x: 200, y: 500 },
+    sceneClass: QuickTapWords
+  },
+  {
+    id: 'quick-tap-numbers',
+    name: 'Quick Tap Numbers',
+    description: 'Use + - * / to reach the target before time runs out.',
+    photo: '/assets/game-thumbnails/quickTapNumbersIcon.png',
+    mapPosition: { x: 500, y: 320 },
+    sceneClass: QuickTapNumbers
   },
   {
     id: 'boulder-bash',
