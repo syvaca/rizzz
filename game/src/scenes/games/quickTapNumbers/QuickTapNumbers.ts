@@ -71,6 +71,7 @@ export class QuickTapNumbers extends PIXI.Container implements ResizableScene {
   private readonly COLS = 4;
   private readonly TOTAL_TILES = 12;
   private boardTopOffset = 0;
+  private isStarting = false;
 
   // Numbers pool
   private readonly NUMBERS_POOL = [1,2,3,4,5,6,7,8,9,10,25,50,75,100];
@@ -184,9 +185,19 @@ export class QuickTapNumbers extends PIXI.Container implements ResizableScene {
     this.startContainer.addChild(startButton);
 
     this.startContainer.eventMode = 'static';
+    // Expand tap target to full screen and prevent multiple-tap race
+    this.startContainer.hitArea = new PIXI.Rectangle(0, 0, this.app.screen.width, this.app.screen.height);
+    this.startContainer.cursor = 'pointer';
     this.startContainer.on('pointerdown', async (e: any) => {
       e.stopPropagation();
-      await this.startGame();
+      if (this.state !== 'START' || this.isStarting) return;
+      this.isStarting = true;
+      startButton.text = 'Loading...';
+      try {
+        await this.startGame();
+      } finally {
+        this.isStarting = false;
+      }
     });
   }
 

@@ -90,6 +90,7 @@ export class QuickTapWords extends PIXI.Container implements ResizableScene {
 
   // Cleanup
   private countdownInterval: number | null = null;
+  private isStarting = false;
 
   constructor(app: PIXI.Application, userId: string, showMapMenu: () => void, isMobile: boolean = false) {
     super();
@@ -218,9 +219,19 @@ export class QuickTapWords extends PIXI.Container implements ResizableScene {
     this.startContainer.addChild(startButton);
 
     this.startContainer.eventMode = 'static';
+    // Make the entire screen tappable to start
+    this.startContainer.hitArea = new PIXI.Rectangle(0, 0, this.app.screen.width, this.app.screen.height);
+    this.startContainer.cursor = 'pointer';
     this.startContainer.on('pointerdown', async (e: any) => {
       e.stopPropagation();
-      await this.startGame();
+      if (this.state !== 'START' || this.isStarting) return; // ignore extra taps
+      this.isStarting = true;
+      startButton.text = 'Loading...';
+      try {
+        await this.startGame();
+      } finally {
+        this.isStarting = false;
+      }
     });
   }
 
