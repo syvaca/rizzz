@@ -1,11 +1,17 @@
-import { Application, Container, Sprite, Text, Ticker, Graphics, TilingSprite, Texture, Spritesheet, Assets, Rectangle } from 'pixi.js';
+import { Application, Container, Sprite, Text, Ticker, Graphics, TilingSprite, Texture, Spritesheet, Assets, Rectangle, TextStyle } from 'pixi.js';
 import { ResizableScene } from '../../SceneManager';
 import { 
   getUserRubies, 
   updateUserRubies, 
   getUserHighScore, 
-  updateUserHighScore 
+  updateUserHighScore, 
+  updateUserPowerups,
+  getUserPowerups,
+  subscribeToUser,
+  usePowerup
 } from '../../../firebase';
+
+type PowerupType = 'multiplier' | 'extra-life' | 'betting';
 
 
 interface Monster {
@@ -19,7 +25,7 @@ interface Monster {
 
 interface Powerup {
   sprite: Sprite;
-  type: 'rocket' | 'powercell';
+  type: 'rocket' | 'powercell' | 'multiplier' | 'extra-life' | 'betting';
 }
 
 export class CosmoClimbScene extends Container implements ResizableScene {
@@ -97,6 +103,9 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   private powercellActive: boolean = false;
   private powercellTimer: number = 0;
   private powercellBoostAmount: number = 0;
+  private multiplierActive: boolean = false;
+  private extraLifeActive: boolean = false;
+  private bettingActive: boolean = false;
   
   // Damage system
   private isVulnerable: boolean = false;
@@ -107,6 +116,7 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   private slowdownMultiplier: number = 0.8; // 20% speed reduction
   private background!: TilingSprite;
   private visuals!: Spritesheet;
+  private powerupVisuals!: Spritesheet;
   private startOverlay?: Container;
   // Container layers for proper z-ordering
   private backgroundLayer!: Container;
@@ -160,7 +170,9 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   private async init() {
     this.detectMobileAndOptimize();
     
+    // Load visuals from cosmoClimbVisuals and powerupVisuals
     this.visuals = Assets.get('cosmoClimbVisuals') as Spritesheet;
+    this.powerupVisuals = Assets.get('powerupVisuals') as Spritesheet;
     
     // Initialize container layers for proper z-ordering
     this.backgroundLayer = new Container();
@@ -182,6 +194,7 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     this.generateAlien();
     this.generateSolarStorm();
     this.generateScoreText();
+    await this.createPowerupDisplay();
     
     this.showStartOverlay();
     
@@ -429,6 +442,363 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     }
   }
 
+  private showBettingMenu() {
+    // Pause the game
+    this.app.ticker.remove(this.update, this);
+    
+    // Create overlay background
+    const overlay = new Graphics();
+    overlay.beginFill(0x000000, 0.7);
+    overlay.drawRect(0, 0, this.app.renderer.width, this.app.renderer.height);
+    overlay.endFill();
+    overlay.interactive = true;
+    overlay.zIndex = 1000;
+    this.addChild(overlay);
+    
+    // Create container for betting menu
+    const menuContainer = new Container();
+    menuContainer.width = 300;
+    menuContainer.height = 200;
+    menuContainer.x = (this.app.renderer.width - 300) / 2;
+    menuContainer.y = (this.app.renderer.height - 200) / 2;
+    menuContainer.zIndex = 1001;
+    
+    // Add background for menu
+    const menuBg = new Graphics();
+    menuBg.beginFill(0x333333);
+    menuBg.drawRoundedRect(0, 0, 300, 200, 15);
+    menuBg.endFill();
+    menuContainer.addChild(menuBg);
+    
+    // Add title
+    const title = new Text('Place Your Bet', {
+      fontFamily: 'Chewy',
+      fontSize: 28,
+      fill: 0xffffff,
+      align: 'center'
+    });
+    title.x = 150 - title.width / 2;
+    title.y = 20;
+    menuContainer.addChild(title);
+    
+    // Add bet amount display
+    const betAmount = new Text('50', {
+      fontFamily: 'Chewy',
+      fontSize: 36,
+      fill: 0xffd700,
+      align: 'center'
+    });
+    betAmount.x = 150 - betAmount.width / 2;
+    betAmount.y = 80;
+    menuContainer.addChild(betAmount);
+    
+    // Add slider
+    const sliderBg = new Graphics();
+    sliderBg.beginFill(0x666666);
+    sliderBg.drawRoundedRect(30, 130, 240, 10, 5);
+    sliderBg.endFill();
+    menuContainer.addChild(sliderBg);
+    
+    const sliderKnob = new Graphics();
+    sliderKnob.beginFill(0xffffff);
+    sliderKnob.drawCircle(0, 0, 15);
+    sliderKnob.endFill();
+    sliderKnob.x = 150;
+    sliderKnob.y = 135;
+    sliderKnob.interactive = true;
+    sliderKnob.cursor = 'pointer';
+    menuContainer.addChild(sliderKnob);
+    
+    // Slider interaction
+    let isDragging = false;
+    const minX = 30;
+    const maxX = 270;
+    let currentBet = 50; // Default bet
+    
+    const updateBet = (x: number) => {
+      // Clamp x position
+      const clampedX = Math.max(minX, Math.min(x, maxX));
+      sliderKnob.x = clampedX;
+      
+      // Calculate bet amount (1 to maxRubies)
+      const rubies = Math.min(100, this.rubies);
+      const ratio = (clampedX - minX) / (maxX - minX);
+      currentBet = Math.max(1, Math.round(rubies * ratio));
+      betAmount.text = currentBet.toString();
+      betAmount.x = 150 - betAmount.width / 2; // Re-center text
+    };
+    
+    sliderKnob.on('pointerdown', (e: any) => {
+      isDragging = true;
+      const localPos = e.data.getLocalPosition(menuContainer);
+      updateBet(localPos.x);
+    });
+    
+    menuContainer.on('pointermove', (e: any) => {
+      if (isDragging) {
+        const localPos = e.data.getLocalPosition(menuContainer);
+        updateBet(localPos.x);
+      }
+    });
+    
+    menuContainer.on('pointerup', () => {
+      isDragging = false;
+    });
+    
+    // Add BET! button
+    const goButton = new Graphics();
+    goButton.beginFill(0x4CAF50);
+    goButton.drawRoundedRect(100, 160, 100, 30, 10);
+    goButton.endFill();
+    goButton.interactive = true;
+    goButton.cursor = 'pointer';
+    
+    const goText = new Text('BET!', {
+      fontFamily: 'Chewy',
+      fontSize: 20,
+      fill: 0xffffff
+    });
+    goText.x = 150 - goText.width / 2;
+    goText.y = 165;
+    
+    goButton.addChild(goText);
+    menuContainer.addChild(goButton);
+    
+    // Handle Go! button click
+    goButton.on('pointertap', () => {
+      // Set the bet and resume game
+      (this as any).userBet = currentBet;
+      this.removeChild(overlay);
+      this.removeChild(menuContainer);
+      this.app.ticker.add(this.update, this);
+    });
+    
+    this.addChild(menuContainer);
+  }
+
+  private async createPowerupDisplay() {
+    try {
+      const powerupContainer = new Container();
+      powerupContainer.x = 20;
+      powerupContainer.y = this.app.renderer.height - 140; // Position at bottom with some padding
+      
+      // Add semi-transparent black background
+      const bg = new Graphics();
+      bg.beginFill(0x000000, 0.7);
+      bg.drawRoundedRect(0, 0, 80, 100, 10);
+      bg.y = 25;
+      bg.endFill();
+      powerupContainer.addChild(bg);
+      
+      // Create powerup icons with blinking animation
+      const powerupTypes = ['multiplier', 'extra-life', 'betting'] as const;
+      const powerupSprites: Sprite[] = [];
+      const powerupTexts: Text[] = [];
+      
+      // Make the container interactive to handle clicks
+      powerupContainer.eventMode = 'static';
+      powerupContainer.hitArea = new Rectangle(0, 0, 80, 100);
+      
+      // Stop event propagation to prevent affecting alien movement
+      powerupContainer.on('pointerdown', (e) => {
+        e.stopPropagation();
+      });
+      
+      powerupContainer.on('pointerup', (e) => {
+        e.stopPropagation();
+      });
+      
+      powerupContainer.on('pointermove', (e) => {
+        e.stopPropagation();
+      });
+      
+      powerupTypes.forEach((type, index) => {
+        // Create a container for each powerup row
+        const rowContainer = new Container();
+        rowContainer.y = 40 + index * 30;
+        rowContainer.eventMode = 'static';
+        rowContainer.cursor = 'pointer';
+        rowContainer.hitArea = new Rectangle(0, 0, 200, 30); // Increased width for better click area
+
+        // Add hover effect background
+        const hoverGraphics = new Graphics();
+        hoverGraphics.beginFill(0xffffff, 0.2);
+        hoverGraphics.drawRoundedRect(0, 0, 200, 30, 5);
+        hoverGraphics.endFill();
+        hoverGraphics.visible = false;
+        rowContainer.addChild(hoverGraphics);
+        
+        // Add hover effects
+        rowContainer.on('pointerover', () => {
+            hoverGraphics.visible = true;
+        });
+        
+        rowContainer.on('pointerout', () => {
+            hoverGraphics.visible = false;
+        });
+        
+        // Create powerup icon
+        const sprite = new Sprite(this.powerupVisuals.textures[`${type}-1.png`]);
+        sprite.width = 24;
+        sprite.height = 24;
+        sprite.x = 15;
+        
+        // Create powerup count text
+        const text = new Text({
+          text: '0',
+          style: new TextStyle({
+            fontFamily: 'Chewy',
+            fontSize: 20,
+            fill: 0xffffff,
+            stroke: { color: 0x000000, width: 2, alpha: 1 }
+          } as any) // Using 'as any' to bypass TypeScript error for stroke
+        });
+        text.x = 50;
+        
+        // Add debug rectangle (can be removed in production)
+        const debugRect = new Graphics();
+        debugRect.lineStyle(1, 0xff0000, 0.5);
+        debugRect.drawRect(0, 0, 200, 30);
+        rowContainer.addChild(debugRect);
+        hoverGraphics.beginFill(0xffffff, 0.2);
+        hoverGraphics.drawRoundedRect(0, 0, 80, 30, 5);
+        hoverGraphics.endFill();
+        hoverGraphics.visible = false;
+        
+        // Add click handler
+        rowContainer.on('pointertap', async (e) => {
+          e.stopPropagation(); // Prevent event from bubbling up
+          try {
+            // Check if we have this powerup available
+            const currentCount = parseInt(text.text, 10); // 
+            if (currentCount > 0) {
+              // Update the active state based on powerup type
+              switch (type) {
+                case 'multiplier':
+                  this.multiplierActive = true;
+                  console.log('Multiplier powerup activated');
+                  break;
+                case 'extra-life':
+                  this.extraLifeActive = true;
+                  console.log('Extra life powerup activated');
+                  break;
+                case 'betting':
+                  this.bettingActive = true;
+                  console.log('Betting powerup activated');
+                  this.showBettingMenu();
+                  break;
+              }
+              
+              // Decrement the count in Firebase
+              await usePowerup(this.userId, type);
+              
+              // Update the display
+              text.text = `${currentCount - 1}`;
+              
+              // Log the activation
+              console.log(`Activated ${type} powerup`);
+              
+              // Close the powerup menu after selection
+              if ((powerupContainer as any).cleanup) {
+                (powerupContainer as any).cleanup();
+              }
+            }
+          } catch (error) {
+            console.error(`Error activating ${type} powerup:`, error);
+          }
+        });
+        
+        // Add hover effects
+        rowContainer.on('pointerover', (e) => {
+          e.stopPropagation();
+          hoverGraphics.visible = true;
+        });
+        
+        rowContainer.on('pointerout', (e) => {
+          e.stopPropagation();
+          hoverGraphics.visible = false;
+        });
+        
+        // Add all elements to the row container
+        rowContainer.addChild(hoverGraphics);
+        rowContainer.addChild(sprite);
+        rowContainer.addChild(text);
+        
+        // Add the row to the main container
+        powerupContainer.addChild(rowContainer);
+        
+        // Store references for animation and updates
+        powerupSprites.push(sprite);
+        powerupTexts.push(text);
+      });
+      
+      // Add blinking animation
+      let isFrame1 = true;
+      const blinkInterval = setInterval(() => {
+        if (powerupContainer.destroyed) {
+          clearInterval(blinkInterval);
+          return;
+        }
+        isFrame1 = !isFrame1;
+        const frame = isFrame1 ? '1' : '2';
+        
+        powerupTypes.forEach((type, index) => {
+          if (!powerupSprites[index].destroyed) {
+            powerupSprites[index].texture = this.powerupVisuals.textures[`${type}-${frame}.png`];
+          }
+        });
+      }, 500);
+      
+      // Function to update powerup counts
+      const updatePowerupCounts = async () => {
+        try {
+          const powerups = await getUserPowerups(this.userId);
+          powerupTypes.forEach((type, index) => {
+            if (!powerupTexts[index].destroyed) {
+              powerupTexts[index].text = `${powerups[type]}`;
+            }
+          });
+        } catch (error) {
+          console.error('Error updating powerup counts:', error);
+        }
+      };
+      
+      // Initial update and set up subscription
+      await updatePowerupCounts();
+      const unsubscribe = subscribeToUser(this.userId, (data: any) => {
+        const powerups = data?.powerups || {};
+        powerupTypes.forEach((type, index) => {
+          if (!powerupTexts[index].destroyed) {
+            powerupTexts[index].text = `${powerups[type] || 0}`;
+          }
+        });
+      });
+      
+      this.foregroundLayer.addChild(powerupContainer);
+      
+      // Store references for cleanup
+      (powerupContainer as any).updatePowerupCounts = updatePowerupCounts;
+      (powerupContainer as any).cleanup = () => {
+        clearInterval(blinkInterval);
+        unsubscribe();
+        if (powerupContainer.parent) {
+          powerupContainer.parent.removeChild(powerupContainer);
+        }
+        powerupContainer.destroy({ children: true });
+      };
+      
+      // Hide the powerup display after 4 seconds
+      setTimeout(() => {
+        if ((powerupContainer as any).cleanup) {
+          (powerupContainer as any).cleanup();
+        }
+      }, 4000);
+      
+    } catch (error) {
+      console.error('Error creating powerup display:', error);
+    }
+  }
+
   private detectMobileAndOptimize() {
     this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     console.log('Mobile device detected:', this.isMobile);
@@ -580,14 +950,41 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     for (let i = 0; i < powerupsToGenerate; i++) {
       const worldY = startY + Math.random() * zoneHeight;
       const x = 60 + Math.random() * (this.app.renderer.width - 120);
-
-      const powerupType = Math.random() < 0.05 ? 'rocket' : 'powercell';
-      const powerupSprite = new Sprite(this.visuals.textures[powerupType === 'rocket' ? 'rocket-off.png' : 'powercell.png']);
+      // for actual game: 5% chance of rocket, 92% chance of powercell, 1% chance of multiplier, 1% chance of extra life, 1% chance of betting
+      //const powerupType = Math.random() < 0.05 ? 'rocket' : Math.random() < 0.97 ? 'powercell' : Math.random() < 0.98 ? 'multiplier' : Math.random() < 0.99 ? 'extra-life' : 'betting';
+      // for testing game: 5% chance of rocket, 20% chance of powercell, 25% chance of multiplier, 25% chance of extra life, 25% chance of betting
+      const powerupType = Math.random() < 0.05 ? 'rocket' : Math.random() < 0.25 ? 'powercell' : Math.random() < 0.5 ? 'multiplier' : Math.random() < 0.75 ? 'extra-life' : 'betting';
+      // Use powerupVisuals spritesheet for all powerups except rocket and powercell
+      const isCosmoClimbPowerup = powerupType === 'rocket' || powerupType === 'powercell';
+      const spritesheet = isCosmoClimbPowerup ? this.visuals : this.powerupVisuals;
+      const textureKey = 
+        powerupType === 'rocket' ? 'rocket-off.png' :
+        powerupType === 'powercell' ? 'powercell.png' :
+        `${powerupType}-1.png`; // For multiplier, extra-life, betting
+      
+      const powerupSprite = new Sprite(spritesheet.textures[textureKey]);
       powerupSprite.width = 32;
       powerupSprite.height = 32;
       powerupSprite.anchor.set(0.5);
       powerupSprite.x = x;
       powerupSprite.y = worldY - this.highestY;
+      
+      // Add blinking animation for non-rocket/powercell powerups
+      if (!isCosmoClimbPowerup) {
+        let isFrame1 = true;
+        const blinkInterval = setInterval(() => {
+          if (powerupSprite.destroyed) {
+            clearInterval(blinkInterval);
+            return;
+          }
+          isFrame1 = !isFrame1;
+          const frame = isFrame1 ? '1' : '2';
+          powerupSprite.texture = this.powerupVisuals.textures[`${powerupType}-${frame}.png`];
+        }, 500); // Toggle every 500ms
+        
+        // Store interval ID on the sprite for cleanup
+        (powerupSprite as any).blinkInterval = blinkInterval;
+      }
       
       this.powerups.push({ sprite: powerupSprite, type: powerupType });
       this.powerupLayer.addChild(powerupSprite);
@@ -859,7 +1256,12 @@ export class CosmoClimbScene extends Container implements ResizableScene {
               
               // Add rotation effect based on velocity
               monster.sprite.rotation = Math.atan2(monster.vy, monster.vx);
-              this.addRubies(1); // Add 1 ruby for hitting monster with rocket
+              if (this.multiplierActive) {
+                this.addRubies(2);
+              } else {
+                this.addRubies(1);
+              }
+
             return;
           }
         }
@@ -888,11 +1290,25 @@ export class CosmoClimbScene extends Container implements ResizableScene {
             this.damageTimer = 0;
             this.slowdownTimer = 0;
             this.alien.visible = true; // Ensure alien is visible
-            this.addRubies(2); // Add 2 rubies for rocket
+            if (this.multiplierActive) {
+              this.addRubies(2);
+            } else {
+              this.addRubies(4);
+            }
           } else if (powerup.type === 'powercell') {
             this.powercellActive = true;
             this.powercellTimer = 1000;
-            this.addRubies(1); // Add 1 ruby for powercell
+            if (this.multiplierActive) {
+              this.addRubies(1);
+            } else {
+              this.addRubies(2);
+            }
+          } else if (powerup.type === 'multiplier') {
+            updateUserPowerups(this.userId, 'multiplier', 1);
+          } else if (powerup.type === 'extra-life') {
+            updateUserPowerups(this.userId, 'extra-life', 1);
+          } else if (powerup.type === 'betting') {
+            updateUserPowerups(this.userId, 'betting', 1);
           }
             this.powerupLayer.removeChild(powerup.sprite);
             this.powerups.splice(i, 1); 
