@@ -4,7 +4,7 @@
 			"frame": {
 				"x": 1,
 				"y": 1,
-				"w": 189,
+				"w": 185,
 				"h": 186
 			},
 			"rotated": false,
@@ -12,38 +12,38 @@
 			"spriteSourceSize": {
 				"x": 0,
 				"y": 0,
-				"w": 189,
+				"w": 185,
 				"h": 186
 			},
 			"sourceSize": {
-				"w": 189,
+				"w": 185,
 				"h": 186
 			}
 		},
 		"betting-2.png": {
 			"frame": {
-				"x": 192,
+				"x": 188,
 				"y": 1,
-				"w": 188,
-				"h": 187
+				"w": 186,
+				"h": 186
 			},
 			"rotated": false,
 			"trimmed": false,
 			"spriteSourceSize": {
 				"x": 0,
 				"y": 0,
-				"w": 188,
-				"h": 187
+				"w": 186,
+				"h": 186
 			},
 			"sourceSize": {
-				"w": 188,
-				"h": 187
+				"w": 186,
+				"h": 186
 			}
 		},
 		"extra-life-1.png": {
 			"frame": {
 				"x": 1,
-				"y": 190,
+				"y": 189,
 				"w": 190,
 				"h": 190
 			},
@@ -63,7 +63,7 @@
 		"extra-life-2.png": {
 			"frame": {
 				"x": 193,
-				"y": 190,
+				"y": 189,
 				"w": 189,
 				"h": 192
 			},

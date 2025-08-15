@@ -45,6 +45,9 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   private usingKeyboard: boolean = false;
   private touchDirection: number = 0;
   private score: number = 0;
+  private multiplierPowerupsEarned: number = 0;
+  private extraLifePowerupsEarned: number = 0;
+  private bettingPowerupsEarned: number = 0;
   private scoreText!: Text;
   private highScoreText!: Text;
   private rubyText!: Text;
@@ -110,6 +113,14 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   // Damage system
   private isVulnerable: boolean = false;
   private damageTimer: number = 0;
+  private isPaused: boolean = false;
+  private storedVelocities: { x: number, y: number } | null = null;
+  private isBettingMenuActive: boolean = false;
+  private betText!: Text;
+  private betSlider!: Graphics;
+  private betSliderHandle!: Graphics;
+  private betValue!: Text;
+  private currentBet: number = 1;
   private damageDuration: number = 5000; // 5 seconds of vulnerability
   private slowdownTimer: number = 0;
   private slowdownDuration: number = 1000; // 1 second of slowdown
@@ -123,6 +134,7 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   private blackHoleLayer!: Container;
   private powerupLayer!: Container;
   private monsterLayer!: Container;
+  private menuContainer!: Container;
   private alienLayer!: Container;
   private foregroundLayer!: Container;
   private gameStarted: boolean = false;
@@ -247,7 +259,7 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   }
 
   private update = () => {
-    if (this.isGameOver || !this.gameStarted) return;
+    if (!this.gameStarted || this.isGameOver || this.isPaused) return;
     
     this.frameCount++;
     
@@ -296,7 +308,15 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   private async showGameOver() {
     // Submit score and rubies to Firebase
     const gameId = 'cosmo-climb'; // Match the ID in games.ts
-    const finalScore = this.score;
+    let finalScore = this.score;
+    if (this.bettingActive) {
+      if (this.currentBet < this.rubies) {
+        finalScore = this.score *5;
+      }
+      else {
+        finalScore = 0;
+      }
+    }
     
     try {
       // Save rubies to Firebase
@@ -406,6 +426,84 @@ export class CosmoClimbScene extends Container implements ResizableScene {
         rubiesText.y = this.app.renderer.height / 2 + yOffset;
         this.addChild(rubiesText);
       }
+
+      // Show multiplier powerups earned
+      if (this.multiplierPowerupsEarned > 0) {
+        // Add multiplier icon
+        const multiplierSprite = new Sprite(this.visuals.textures['multiplier-1.png']);
+        multiplierSprite.width = 32;
+        multiplierSprite.height = 32;
+        multiplierSprite.anchor.set(0.5);
+        multiplierSprite.x = this.app.renderer.width / 2 - 40;
+        multiplierSprite.y = this.app.renderer.height / 2 + yOffset;
+        this.addChild(multiplierSprite);
+        
+        // Add multiplier text
+        const multiplierText = new Text(`x${this.multiplierPowerupsEarned}`, {
+          fontFamily: 'Chewy',
+          fontSize: 36,
+          fill: 0xffffff,
+          stroke: 0x000000,
+          strokeThickness: 3,
+          align: 'center'
+        } as any);
+        multiplierText.anchor.set(0.5);
+        multiplierText.x = this.app.renderer.width / 2 + 20;
+        multiplierText.y = this.app.renderer.height / 2 + yOffset;
+        this.addChild(multiplierText);
+      }
+      
+      // Show extra life powerups earned
+      if (this.extraLifePowerupsEarned > 0) {
+        // Add extra life icon
+        const extraLifeSprite = new Sprite(this.visuals.textures['extra-life.png']);
+        extraLifeSprite.width = 32;
+        extraLifeSprite.height = 32;
+        extraLifeSprite.anchor.set(0.5);
+        extraLifeSprite.x = this.app.renderer.width / 2 - 40;
+        extraLifeSprite.y = this.app.renderer.height / 2 + yOffset;
+        this.addChild(extraLifeSprite);
+        
+        // Add extra life text
+        const extraLifeText = new Text(`x${this.extraLifePowerupsEarned}`, {
+          fontFamily: 'Chewy',
+          fontSize: 36,
+          fill: 0xffffff,
+          stroke: 0x000000,
+          strokeThickness: 3,
+          align: 'center'
+        } as any);
+        extraLifeText.anchor.set(0.5);
+        extraLifeText.x = this.app.renderer.width / 2 + 20;
+        extraLifeText.y = this.app.renderer.height / 2 + yOffset;
+        this.addChild(extraLifeText);
+      }
+      
+      // Show betting powerups earned
+      if (this.bettingPowerupsEarned > 0) {
+        // Add betting icon
+        const bettingSprite = new Sprite(this.visuals.textures['betting.png']);
+        bettingSprite.width = 32;
+        bettingSprite.height = 32;
+        bettingSprite.anchor.set(0.5);
+        bettingSprite.x = this.app.renderer.width / 2 - 40;
+        bettingSprite.y = this.app.renderer.height / 2 + yOffset;
+        this.addChild(bettingSprite);
+        
+        // Add betting text
+        const bettingText = new Text(`x${this.bettingPowerupsEarned}`, {
+          fontFamily: 'Chewy',
+          fontSize: 36,
+          fill: 0xffffff,
+          stroke: 0x000000,
+          strokeThickness: 3,
+          align: 'center'
+        } as any);
+        bettingText.anchor.set(0.5);
+        bettingText.x = this.app.renderer.width / 2 + 20;
+        bettingText.y = this.app.renderer.height / 2 + yOffset;
+        this.addChild(bettingText);
+      }
       
       // Remove overlay and reset after delay
       setTimeout(() => {
@@ -442,9 +540,38 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     }
   }
 
-  private showBettingMenu() {
-    // Pause the game
+  private pauseGame() {
+    if (this.isPaused) return;
+    
+    this.isPaused = true;
+    this.storedVelocities = {
+      x: this.velocityX,
+      y: this.velocityY
+    };
+    // Reset velocities to stop movement
+    this.velocityX = 0;
+    this.velocityY = 0;
+    this.keyboardTilt = 0;
+    this.touchDirection = 0;
     this.app.ticker.remove(this.update, this);
+  }
+
+  private resumeGame() {
+    if (!this.isPaused) return;
+    
+    this.isPaused = false;
+    if (this.storedVelocities) {
+      this.velocityX = this.storedVelocities.x;
+      this.velocityY = this.storedVelocities.y;
+      this.storedVelocities = null;
+    }
+    this.app.ticker.add(this.update, this);
+  }
+
+  private showBettingMenu() {
+    // Pause the game and show betting menu
+    this.isBettingMenuActive = true;
+    this.pauseGame();
     
     // Create overlay background
     const overlay = new Graphics();
@@ -456,22 +583,22 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     this.addChild(overlay);
     
     // Create container for betting menu
-    const menuContainer = new Container();
-    menuContainer.width = 300;
-    menuContainer.height = 200;
-    menuContainer.x = (this.app.renderer.width - 300) / 2;
-    menuContainer.y = (this.app.renderer.height - 200) / 2;
-    menuContainer.zIndex = 1001;
+    this.menuContainer = new Container();
+    this.menuContainer.width = 300;
+    this.menuContainer.height = 200;
+    this.menuContainer.x = (this.app.renderer.width - 300) / 2;
+    this.menuContainer.y = (this.app.renderer.height - 200) / 2;
+    this.menuContainer.zIndex = 1001;
     
     // Add background for menu
     const menuBg = new Graphics();
     menuBg.beginFill(0x333333);
     menuBg.drawRoundedRect(0, 0, 300, 200, 15);
     menuBg.endFill();
-    menuContainer.addChild(menuBg);
+    this.menuContainer.addChild(menuBg);
     
     // Add title
-    const title = new Text('Place Your Bet', {
+    const title = new Text('All or nothing! Hit your goal for 5× Rubies!', {
       fontFamily: 'Chewy',
       fontSize: 28,
       fill: 0xffffff,
@@ -479,79 +606,18 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     });
     title.x = 150 - title.width / 2;
     title.y = 20;
-    menuContainer.addChild(title);
+    this.menuContainer.addChild(title);
     
-    // Add bet amount display
-    const betAmount = new Text('50', {
-      fontFamily: 'Chewy',
-      fontSize: 36,
-      fill: 0xffd700,
-      align: 'center'
-    });
-    betAmount.x = 150 - betAmount.width / 2;
-    betAmount.y = 80;
-    menuContainer.addChild(betAmount);
-    
-    // Add slider
-    const sliderBg = new Graphics();
-    sliderBg.beginFill(0x666666);
-    sliderBg.drawRoundedRect(30, 130, 240, 10, 5);
-    sliderBg.endFill();
-    menuContainer.addChild(sliderBg);
-    
-    const sliderKnob = new Graphics();
-    sliderKnob.beginFill(0xffffff);
-    sliderKnob.drawCircle(0, 0, 15);
-    sliderKnob.endFill();
-    sliderKnob.x = 150;
-    sliderKnob.y = 135;
-    sliderKnob.interactive = true;
-    sliderKnob.cursor = 'pointer';
-    menuContainer.addChild(sliderKnob);
-    
-    // Slider interaction
-    let isDragging = false;
-    const minX = 30;
-    const maxX = 270;
-    let currentBet = 50; // Default bet
-    
-    const updateBet = (x: number) => {
-      // Clamp x position
-      const clampedX = Math.max(minX, Math.min(x, maxX));
-      sliderKnob.x = clampedX;
-      
-      // Calculate bet amount (1 to maxRubies)
-      const rubies = Math.min(100, this.rubies);
-      const ratio = (clampedX - minX) / (maxX - minX);
-      currentBet = Math.max(1, Math.round(rubies * ratio));
-      betAmount.text = currentBet.toString();
-      betAmount.x = 150 - betAmount.width / 2; // Re-center text
-    };
-    
-    sliderKnob.on('pointerdown', (e: any) => {
-      isDragging = true;
-      const localPos = e.data.getLocalPosition(menuContainer);
-      updateBet(localPos.x);
-    });
-    
-    menuContainer.on('pointermove', (e: any) => {
-      if (isDragging) {
-        const localPos = e.data.getLocalPosition(menuContainer);
-        updateBet(localPos.x);
-      }
-    });
-    
-    menuContainer.on('pointerup', () => {
-      isDragging = false;
-    });
+    // Create slider
+    this.createBetSlider();
     
     // Add BET! button
-    const goButton = new Graphics();
-    goButton.beginFill(0x4CAF50);
-    goButton.drawRoundedRect(100, 160, 100, 30, 10);
-    goButton.endFill();
-    goButton.interactive = true;
-    goButton.cursor = 'pointer';
+    const betButton = new Graphics();
+    betButton.beginFill(0x4CAF50);
+    betButton.drawRoundedRect(100, 160, 100, 30, 10);
+    betButton.endFill();
+    betButton.interactive = true;
+    betButton.cursor = 'pointer';
     
     const goText = new Text('BET!', {
       fontFamily: 'Chewy',
@@ -561,19 +627,113 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     goText.x = 150 - goText.width / 2;
     goText.y = 165;
     
-    goButton.addChild(goText);
-    menuContainer.addChild(goButton);
+    betButton.addChild(goText);
+    this.menuContainer.addChild(betButton);
     
-    // Handle Go! button click
-    goButton.on('pointertap', () => {
+    // Handle BET! button click
+    betButton.on('pointerdown', () => {
       // Set the bet and resume game
-      (this as any).userBet = currentBet;
+      (this as any).userBet = this.currentBet;
+      console.log(this.currentBet)
       this.removeChild(overlay);
-      this.removeChild(menuContainer);
-      this.app.ticker.add(this.update, this);
+      this.removeChild(this.menuContainer);
+      this.isBettingMenuActive = false; // Clear the betting menu flag
+      this.resumeGame();
     });
     
-    this.addChild(menuContainer);
+    this.addChild(this.menuContainer);
+  }
+
+  private createBetSlider() {
+    const sliderWidth = 200;
+    const sliderHeight = 8;
+    const handleSize = 20;
+    const containerWidth = 300; // Width of the menu container
+    const sliderX = (containerWidth - sliderWidth) / 2; // Center the slider
+    const sliderY = 100; // Position below the title
+
+    // Slider track
+    this.betSlider = new Graphics();
+    this.betSlider.beginFill(0x666666);
+    this.betSlider.drawRoundedRect(0, 0, sliderWidth, sliderHeight, 4);
+    this.betSlider.endFill();
+    this.betSlider.lineStyle(2, 0xffffff);
+    this.betSlider.drawRoundedRect(0, 0, sliderWidth, sliderHeight, 4);
+    this.betSlider.x = sliderX;
+    this.betSlider.y = sliderY;
+    this.menuContainer.addChild(this.betSlider);
+
+    // Slider handle
+    this.betSliderHandle = new Graphics();
+    this.betSliderHandle.beginFill(0xffffff);
+    this.betSliderHandle.drawCircle(0, 0, handleSize / 2);
+    this.betSliderHandle.endFill();
+    this.betSliderHandle.lineStyle(2, 0x000000);
+    this.betSliderHandle.drawCircle(0, 0, handleSize / 2);
+    this.betSliderHandle.x = sliderX;
+    this.betSliderHandle.y = sliderY + sliderHeight / 2;
+    this.betSliderHandle.eventMode = 'static';
+    this.betSliderHandle.cursor = 'pointer';
+    this.menuContainer.addChild(this.betSliderHandle);
+
+    // Bet value text
+    this.betValue = new Text('1', {
+      fontFamily: 'Chewy',
+      fontSize: 18,
+      fill: 0xffffff,
+      stroke: 0x000000
+    });
+    this.betValue.x = sliderX + sliderWidth + 10;
+    this.betValue.y = sliderY - 9; // Vertically center with slider
+    this.menuContainer.addChild(this.betValue);
+
+    // Ruby sprite
+    this.rubySprite = Sprite.from('ruby.png');
+    this.rubySprite.scale.set(0.1);
+    this.rubySprite.x = sliderX + sliderWidth + 40; // Position to the right of the value
+    this.rubySprite.y = sliderY - 10; // Vertically center with slider
+    this.menuContainer.addChild(this.rubySprite);
+
+    // Set up slider interaction
+    this.setupSliderInteraction();
+  }
+
+  private setupSliderInteraction() {
+    let isDragging = false;
+    let dragStartX = 0;
+    let sliderStartX = 0;
+
+    this.betSliderHandle.on('pointerdown', (event: any) => {
+      isDragging = true;
+      dragStartX = event.global.x;
+      sliderStartX = this.betSliderHandle.x;
+    });
+
+    this.app.stage.on('pointermove', async (event: any) => {
+      if (!isDragging) return;
+
+      const deltaX = event.global.x - dragStartX;
+      let newX = sliderStartX + deltaX;
+      
+      // Constrain to slider bounds
+      const sliderX = this.betSlider.x;
+      const sliderWidth = 200;
+      const minX = sliderX;
+      const maxX = sliderX + sliderWidth;
+      newX = Math.max(minX, Math.min(maxX, newX));
+      
+      this.betSliderHandle.x = newX;
+      
+      // Update bet value based on position within slider bounds
+      const ratio = (newX - minX) / (maxX - minX);
+      const rubies = await getUserRubies(this.userId);
+      this.currentBet = Math.round(1 + ratio * Math.min(49, rubies)); // 1 to min(50, rubies)
+      this.betValue.text = this.currentBet.toString();
+    });
+
+    this.app.stage.on('pointerup', () => {
+      isDragging = false;
+    });
   }
 
   private async createPowerupDisplay() {
@@ -585,8 +745,8 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       // Add semi-transparent black background
       const bg = new Graphics();
       bg.beginFill(0x000000, 0.7);
-      bg.drawRoundedRect(0, 0, 80, 100, 10);
-      bg.y = 25;
+      bg.drawRoundedRect(0, 0, 200, 140, 10); // Increased width to fit better hit areas
+      bg.y = 0;
       bg.endFill();
       powerupContainer.addChild(bg);
       
@@ -597,20 +757,28 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       
       // Make the container interactive to handle clicks
       powerupContainer.eventMode = 'static';
-      powerupContainer.hitArea = new Rectangle(0, 0, 80, 100);
+      powerupContainer.hitArea = new Rectangle(0, 0, 200, 140);
+      powerupContainer.sortableChildren = true; // Ensure proper z-index handling
+      
+      // Add debug visualization for the container
+      const debugRect = new Graphics();
+      debugRect.lineStyle(2, 0x00ff00, 0.5);
+      debugRect.drawRect(0, 0, 200, 140);
+      powerupContainer.addChild(debugRect);
       
       // Stop event propagation to prevent affecting alien movement
-      powerupContainer.on('pointerdown', (e) => {
+      const stopPropagation = (e: any) => {
         e.stopPropagation();
-      });
+        e.stopImmediatePropagation();
+        return true;
+      };
       
-      powerupContainer.on('pointerup', (e) => {
-        e.stopPropagation();
-      });
-      
-      powerupContainer.on('pointermove', (e) => {
-        e.stopPropagation();
-      });
+      powerupContainer.on('pointerdown', stopPropagation);
+      powerupContainer.on('pointerup', stopPropagation);
+      powerupContainer.on('pointermove', stopPropagation);
+      powerupContainer.on('pointerover', stopPropagation);
+      powerupContainer.on('pointerout', stopPropagation);
+      powerupContainer.on('pointertap', stopPropagation);
       
       powerupTypes.forEach((type, index) => {
         // Create a container for each powerup row
@@ -655,19 +823,26 @@ export class CosmoClimbScene extends Container implements ResizableScene {
         });
         text.x = 50;
         
-        // Add debug rectangle (can be removed in production)
-        const debugRect = new Graphics();
-        debugRect.lineStyle(1, 0xff0000, 0.5);
-        debugRect.drawRect(0, 0, 200, 30);
-        rowContainer.addChild(debugRect);
-        hoverGraphics.beginFill(0xffffff, 0.2);
-        hoverGraphics.drawRoundedRect(0, 0, 80, 30, 5);
-        hoverGraphics.endFill();
-        hoverGraphics.visible = false;
+        // Add debug logging for the row container
+        console.log(`Creating row for ${type} at y=${rowContainer.y}`);
         
-        // Add click handler
+        // Add click handler with detailed logging
+        rowContainer.on('pointerdown', (e) => {
+          console.log(`Pointer down on ${type} row`);
+          e.stopPropagation();
+          return true;
+        });
+        
+        rowContainer.on('pointerup', (e) => {
+          console.log(`Pointer up on ${type} row`);
+          e.stopPropagation();
+          return true;
+        });
+        
         rowContainer.on('pointertap', async (e) => {
+          console.log(`Tapped on ${type} row`);
           e.stopPropagation(); // Prevent event from bubbling up
+          e.stopImmediatePropagation(); // Stop all other handlers
           try {
             // Check if we have this powerup available
             const currentCount = parseInt(text.text, 10); // 
@@ -684,7 +859,7 @@ export class CosmoClimbScene extends Container implements ResizableScene {
                   break;
                 case 'betting':
                   this.bettingActive = true;
-                  console.log('Betting powerup activated');
+                  console.log('Betting powerup activated, ' + this.bettingPowerupsEarned + ' betting powerups earned');
                   this.showBettingMenu();
                   break;
               }
@@ -1037,6 +1212,8 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   };
 
   private handleTouch = (e: TouchEvent) => {
+    if (this.isBettingMenuActive) return; // Ignore touch events when betting menu is active
+    
     if (e.touches.length === 0) {
       this.touchDirection = 0;
       return;
@@ -1059,6 +1236,8 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   };
 
   private handleKeyDown = (e: KeyboardEvent) => {
+    if (this.isBettingMenuActive) return; // Ignore key events when betting menu is active
+    
     if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
       this.keyboardTilt = -0.4;
       this.usingKeyboard = true;
@@ -1305,10 +1484,13 @@ export class CosmoClimbScene extends Container implements ResizableScene {
             }
           } else if (powerup.type === 'multiplier') {
             updateUserPowerups(this.userId, 'multiplier', 1);
+            this.multiplierPowerupsEarned++;  
           } else if (powerup.type === 'extra-life') {
             updateUserPowerups(this.userId, 'extra-life', 1);
+            this.extraLifePowerupsEarned++;
           } else if (powerup.type === 'betting') {
             updateUserPowerups(this.userId, 'betting', 1);
+            this.bettingPowerupsEarned++;
           }
             this.powerupLayer.removeChild(powerup.sprite);
             this.powerups.splice(i, 1); 
