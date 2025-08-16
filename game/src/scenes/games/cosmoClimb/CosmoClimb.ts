@@ -969,7 +969,7 @@ this.menuContainer.addChild(betButton);
         // Add hover effect background
         const hoverGraphics = new Graphics();
         hoverGraphics.beginFill(0xffffff, 0.3);
-        hoverGraphics.drawRoundedRect(0, 0, 50, rowHeight, 5);
+        hoverGraphics.drawRoundedRect(0, 0, 75, rowHeight, 5);
         hoverGraphics.endFill();
         hoverGraphics.visible = false;
         rowContainer.addChild(hoverGraphics);
@@ -1623,17 +1623,17 @@ this.menuContainer.addChild(betButton);
             this.slowdownTimer = 0;
             this.alien.visible = true; // Ensure alien is visible
             if (this.multiplierActive) {
-              this.addRubies(2);
-            } else {
               this.addRubies(4);
+            } else {
+              this.addRubies(2);
             }
           } else if (powerup.type === 'powercell') {
             this.powercellActive = true;
             this.powercellTimer = 1000;
             if (this.multiplierActive) {
-              this.addRubies(1);
-            } else {
               this.addRubies(2);
+            } else {
+              this.addRubies(1);
             }
           } else if (powerup.type === 'multiplier') {
             updateUserPowerups(this.userId, 'multiplier', 1);
