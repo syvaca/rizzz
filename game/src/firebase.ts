@@ -25,14 +25,11 @@ type SongStatus =
   | 'unlocked-three-star'
   | 'unlocked-gold';
 
-const STATUS_ORDER: SongStatus[] = [
-  'locked',
-  'unlocked-unplayed',
-  'unlocked-one-star',
-  'unlocked-two-star',
-  'unlocked-three-star',
-  'unlocked-gold',
-];
+interface UserPowerups {
+  'multiplier': number;
+  'extra-life': number;
+  'betting': number;
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
@@ -41,21 +38,25 @@ const auth = getAuth(app);
 
 export const usersRef = ref(database, "users");
 
-const initialSongsStatus = Array.from({ length: 9 }, (_, i) =>
-  i === 0 ? 'unlocked-unplayed' : 'locked'
-);
+const initialPowerups: UserPowerups = {
+  'multiplier': 0,
+  'extra-life': 0,
+  'betting': 0
+};
 
 /**
  * Creates a new user entry (or overwrites if it exists).
  * @param userId   The unique ID for this user
  * @param rubies    Initial coin count (int)
  * @param highScores Initial high scores for each game (object {gameId: score})
+ * @param powerups Initial powerups for the user
  */
 
-export function writeUserData(userId: string, rubies: number, highScores: Record<string, number> = {}): Promise<void> {
+export function writeUserData(userId: string, rubies: number, highScores: Record<string, number> = {}, powerups: UserPowerups = { ...initialPowerups }): Promise<void> {
     return set(ref(database, `users/${userId}`), {
         rubies,
         high_scores: highScores, 
+        powerups
     });
 }
 
@@ -72,7 +73,7 @@ export function initAnonymousUser(): Promise<string> {
           // seed the record if it doesn’t exist
           const snap = await get(userRef);
           if (!snap.exists()) {
-            await set(userRef, { rubies: 0, high_scores: {}, songs: initialSongsStatus});
+            await set(userRef, { rubies: 0, high_scores: {}, powerups: initialPowerups});
           }
           resolve(user_id);
         } else {
@@ -98,6 +99,53 @@ export function getUserHighScore(userId: string, gameId: string): Promise<number
             console.error(`Failed to get user high score for ${gameId}:`, err);
             throw err;
         });
+}
+
+export async function getUserPowerups(userId: string): Promise<UserPowerups> {
+  const snapshot = await get(ref(database, `users/${userId}/powerups`));
+  if (snapshot.exists()) {
+    return snapshot.val();
+  }
+  return { ...initialPowerups };
+  // returns in format { multiplier: number, extra-life: number, betting: number }
+}
+
+export async function updateUserPowerups(
+  userId: string, 
+  powerupType: keyof UserPowerups, 
+  delta: number
+): Promise<number> {
+  const powerupRef = ref(database, `users/${userId}/powerups/${powerupType}`);
+  
+  return new Promise((resolve, reject) => {
+    runTransaction(powerupRef, (currentValue) => {
+      // If no value exists, start with 0
+      const currentCount = currentValue || 0;
+      const newCount = Math.max(0, currentCount + delta); // Prevent negative values
+      return newCount;
+    })
+    .then((result) => {
+      if (result.committed) {
+        resolve(result.snapshot.val());
+      } else {
+        reject(new Error('Transaction not committed'));
+      }
+    })
+    .catch(reject);
+  });
+}
+
+export async function usePowerup(
+  userId: string, 
+  powerupType: keyof UserPowerups
+): Promise<boolean> {
+  try {
+    await updateUserPowerups(userId, powerupType, -1);
+    return true;
+  } catch (error) {
+    console.error('Failed to use powerup:', error);
+    return false;
+  }
 }
 
 export function updateUserRubies(userId: string, rubiesToAdd: number): Promise<void> {

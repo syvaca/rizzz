@@ -1,7 +1,7 @@
-import { Application, Container, Sprite, Graphics, Assets, Text } from 'pixi.js';
+import { Application, Container, Sprite, Spritesheet, Graphics, Assets, Text } from 'pixi.js';
 import { GAMES, GameData } from '../data/games';
 import { GamePopup } from '../components/GamePopup';
-import { getUserRubies, subscribeToUser } from "../firebase";
+import { getUserPowerups, getUserRubies, subscribeToUser } from "../firebase";
 
 export class MapMenuScene extends Container {
   private mapContainer!: Container;
@@ -9,12 +9,16 @@ export class MapMenuScene extends Container {
   private gameDots: Map<string, Sprite> = new Map();
   private gameLabels: Map<string, Text> = new Map();
   private currentPopup: GamePopup | null = null;
+  private visuals!: Spritesheet;
   private outsideClickHandler: (event: any) => void;
   
   // Coin display variables
   private coinContainer!: Container;
   private rubySprite!: Sprite;
   private coinText!: Text;
+  private multiplierText!: Text;
+  private extraLifeText!: Text;
+  private bettingText!: Text;
   
   // Scrolling variables
   private isDragging = false;
@@ -30,6 +34,7 @@ export class MapMenuScene extends Container {
     private readonly userId: string
   ) {
     super();
+    this.visuals = Assets.get('powerupVisuals') as Spritesheet;
     this.outsideClickHandler = this.handleOutsideClick.bind(this);
 
     // Add window resize event listener
@@ -95,7 +100,44 @@ export class MapMenuScene extends Container {
       this.rubySprite.x = 0;
       this.rubySprite.y = 0;
       this.coinContainer.addChild(this.rubySprite);
+
+      // load powerup sprites
+      // Create multiplier sprite with blinking animation
+      const multiplierSprite = new Sprite(this.visuals.textures['multiplier-1.png']);
+      multiplierSprite.width = 32;
+      multiplierSprite.height = 32;
+      multiplierSprite.x = 0;
+      multiplierSprite.y = 34;
+      this.coinContainer.addChild(multiplierSprite);
       
+      // Create extra life sprite
+      const extraLifeSprite = new Sprite(this.visuals.textures['extra-life-1.png']);
+      extraLifeSprite.width = 32;
+      extraLifeSprite.height = 32;
+      extraLifeSprite.x = 0;
+      extraLifeSprite.y = 68;
+      this.coinContainer.addChild(extraLifeSprite);
+
+      // Create betting sprite
+      const bettingSprite = new Sprite(this.visuals.textures['betting-1.png']);
+      bettingSprite.width = 32;
+      bettingSprite.height = 32;
+      bettingSprite.x = 0;
+      bettingSprite.y = 102;
+      this.coinContainer.addChild(bettingSprite);
+      
+      // Add synchronized blinking animation to all powerup sprites
+      let isFrame1 = true;
+      setInterval(() => {
+        if (multiplierSprite.destroyed || extraLifeSprite.destroyed || bettingSprite.destroyed) return;
+        isFrame1 = !isFrame1;
+        const frame = isFrame1 ? '1' : '2';
+        
+        multiplierSprite.texture = this.visuals.textures[`multiplier-${frame}.png`];
+        extraLifeSprite.texture = this.visuals.textures[`extra-life-${frame}.png`];
+        bettingSprite.texture = this.visuals.textures[`betting-${frame}.png`];
+      }, 500); // Toggle all sprites together every 500ms
+
       // Create coin text
       const coins = await getUserRubies(this.userId);
       this.coinText = new Text(`${coins}`, {
@@ -108,6 +150,38 @@ export class MapMenuScene extends Container {
       this.coinText.y = 0;
       this.coinContainer.addChild(this.coinText);
       
+      // Create powerup text
+      const powerups = await getUserPowerups(this.userId);
+      this.multiplierText = new Text(`${powerups['multiplier']}`, {
+        fontFamily: 'Chewy',
+        fontSize: 28,
+        fill: 0xffffff,
+        fontWeight: 'bold'
+      });
+      this.multiplierText.x = 40;
+      this.multiplierText.y = 34;
+      this.coinContainer.addChild(this.multiplierText);
+
+      this.extraLifeText = new Text(`${powerups['extra-life']}`, {
+        fontFamily: 'Chewy',
+        fontSize: 28,
+        fill: 0xffffff,
+        fontWeight: 'bold'
+      });
+      this.extraLifeText.x = 40;
+      this.extraLifeText.y = 68;
+      this.coinContainer.addChild(this.extraLifeText);
+
+      this.bettingText = new Text(`${powerups['betting']}`, {
+        fontFamily: 'Chewy',
+        fontSize: 28,
+        fill: 0xffffff,
+        fontWeight: 'bold'
+      });
+      this.bettingText.x = 40;
+      this.bettingText.y = 102;
+      this.coinContainer.addChild(this.bettingText);
+      
       // Position dynamically based on text width
       this.updateCoinDisplayPosition();
       
@@ -119,7 +193,7 @@ export class MapMenuScene extends Container {
   }
 
   private updateCoinDisplayPosition() {
-    if (this.coinContainer && this.coinText) {
+    if (this.coinContainer && this.coinText && this.multiplierText && this.extraLifeText && this.bettingText) {
       // Calculate total width of the display (ruby + spacing + text)
       const totalWidth = 40 + this.coinText.width; // 40px for ruby + spacing
       const padding = 20; // Padding from screen edge
