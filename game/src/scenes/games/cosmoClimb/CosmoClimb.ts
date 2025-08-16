@@ -1,4 +1,4 @@
-import { Application, Container, Sprite, Text, Ticker, Graphics, TilingSprite, Texture, Spritesheet, Assets, Rectangle, TextStyle } from 'pixi.js';
+import { Application, Container, Sprite, Text, TextStyle, TilingSprite, Graphics, Spritesheet, Rectangle, Ticker, Assets, Texture } from 'pixi.js';
 import { ResizableScene } from '../../SceneManager';
 import { 
   getUserRubies, 
@@ -128,6 +128,10 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   private background!: TilingSprite;
   private visuals!: Spritesheet;
   private powerupVisuals!: Spritesheet;
+  private powerupCounts: Record<string, Text> = {};
+  private powerupContainers: Record<string, Container> = {};
+  private lastCollisionObject: Sprite | null = null; // Track the last object that collided with the alien
+  private powerupBlinkInterval?: number;
   private startOverlay?: Container;
   // Container layers for proper z-ordering
   private backgroundLayer!: Container;
@@ -275,7 +279,6 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     this.cleanupOffScreenObjects();
     this.updateVisualEffects();
     this.updateMonsterMovement();
-    this.checkGameOverConditions();
   };
 
   private checkDynamicGeneration() {
@@ -296,13 +299,79 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     }
   }
 
-  private checkGameOverConditions() {
-
-    // Game over if alien falls off bottom (only if not being sucked)
-    if (!this.objectsBeingSucked.has(this.alien) && this.alien.y > this.app.renderer.height) {
-      this.isGameOver = true;
-      this.showGameOver();
+  private removeCollisionObject(obj: Sprite | null) {
+    if (!obj) return;
+    
+    // Remove from appropriate array and layer based on object type
+    const monsterIndex = this.monsters.findIndex(m => m.sprite === obj);
+    if (monsterIndex > -1) {
+      this.monsters.splice(monsterIndex, 1);
+      this.monsterLayer.removeChild(obj);
+    } else if (this.blackHoles.includes(obj)) {
+      const blackHoleIndex = this.blackHoles.indexOf(obj);
+      if (blackHoleIndex > -1) {
+        this.blackHoles.splice(blackHoleIndex, 1);
+      }
+      this.blackHoleLayer.removeChild(obj);
     }
+    
+    // Also remove from objectsBeingSucked if it exists there
+    if (this.objectsBeingSucked.has(obj)) {
+      this.objectsBeingSucked.delete(obj);
+    }
+  }
+
+  private showExtraLifePowerupDisplay() {
+    // Remove the object that caused the collision
+    console.log("lastCollisionObject: ", this.lastCollisionObject);
+    if (this.lastCollisionObject && this.lastCollisionObject != this.solarStorm) {
+      this.removeCollisionObject(this.lastCollisionObject);
+    }
+    
+    this.pauseGame();
+    // Create and show the 'Extra Life Used!' text
+    const style = new TextStyle({
+      fontFamily: 'Chewy',
+      fontSize: 36,
+      fill: '#ffffff',
+      stroke: { color: '#000000', width: 4, alpha: 1 },
+    });
+
+    const extraLifeText = new Text({
+      text: 'Extra Life Used!',
+      style: style
+    });
+    
+    // Position the text in the center of the screen
+    extraLifeText.anchor.set(0.5);
+    extraLifeText.x = this.app.screen.width / 2;
+    extraLifeText.y = this.app.screen.height / 2;
+    extraLifeText.zIndex = 2000; // Make sure it's on top of everything
+    
+    // Add to stage
+    this.foregroundLayer.addChild(extraLifeText);
+    
+    // Set a timer to remove the text and reset positions after 2 seconds
+    setTimeout(() => {
+      // Remove the text
+      this.foregroundLayer.removeChild(extraLifeText);
+      
+      // Reset solar storm position
+      this.resetSolarStormPosition();
+
+      this.lastCollisionObject = null;
+      
+      // Reset vulnerability state
+      this.isVulnerable = false;
+      this.resumeGame();
+      
+    }, 2000);
+  }
+  
+  private resetSolarStormPosition() {
+    // Reset solar storm to starting position (adjust based on your game's starting position)
+    this.solarStormY = this.alien.y + 840;
+    this.solarStorm.y = this.solarStormY - this.alien.y;
   }
 
   private async showGameOver() {
@@ -565,6 +634,49 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     }
   }
 
+  private activatePowerup(type: 'multiplier' | 'extra-life' | 'betting') {
+    // Implement powerup activation logic here
+    console.log(`Activating powerup: ${type}`);
+    
+    // Example implementation - you'll need to adjust this based on your game's needs
+    switch (type) {
+      case 'multiplier':
+        this.multiplierActive = true;
+        this.multiplierPowerupsEarned--;
+        break;
+      case 'extra-life':
+        this.extraLifeActive = true;
+        this.extraLifePowerupsEarned--;
+        break;
+      case 'betting':
+        this.bettingActive = true;
+        this.bettingPowerupsEarned--;
+        this.showBettingMenu();
+        break;
+    }
+    
+    // Update the UI to reflect the change
+    this.updatePowerupCounts();
+  }
+  
+  private updatePowerupCounts() {
+    // Update the display of powerup counts
+    if (this.powerupCounts['multiplier']) {
+      this.powerupCounts['multiplier'].text = this.multiplierPowerupsEarned.toString();
+      this.powerupContainers['multiplier'].alpha = this.multiplierPowerupsEarned > 0 ? 1 : 0.5;
+    }
+    
+    if (this.powerupCounts['extra-life']) {
+      this.powerupCounts['extra-life'].text = this.extraLifePowerupsEarned.toString();
+      this.powerupContainers['extra-life'].alpha = this.extraLifePowerupsEarned > 0 ? 1 : 0.5;
+    }
+    
+    if (this.powerupCounts['betting']) {
+      this.powerupCounts['betting'].text = this.bettingPowerupsEarned.toString();
+      this.powerupContainers['betting'].alpha = this.bettingPowerupsEarned > 0 ? 1 : 0.5;
+    }
+  }
+
   private showBettingMenu() {
     // Pause the game and show betting menu
     this.isBettingMenuActive = true;
@@ -728,135 +840,196 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       this.betValue.text = this.currentBet.toString();
     });
 
-    this.app.stage.on('pointerup', () => {
-      isDragging = false;
-    });
-  }
+// Create bet button
+const betButton = new Graphics() as Graphics & { buttonMode: boolean };
+betButton.beginFill(0x4CAF50); // Green color
+betButton.drawRoundedRect(0, 0, 200, 50, 25);
+betButton.endFill();
+betButton.x = 50;
+betButton.y = 150;
+betButton.interactive = true;
+betButton.buttonMode = true;
 
-  private async createPowerupDisplay() {
+// Add text to button
+const goText = new Text('BET!', {
+    fontFamily: 'Chewy',
+    fontSize: 24,
+    fill: 0xffffff,
+    align: 'center'
+});
+goText.anchor.set(0.5);
+goText.x = betButton.width / 2;
+goText.y = betButton.height / 2;
+
+// Add text to button
+betButton.addChild(goText);
+
+// Add click handler
+betButton.on('pointertap', async () => {
+    // Handle bet placement here
+    const rubies = await getUserRubies(this.userId);
+    if (rubies >= this.currentBet) {
+        await updateUserRubies(this.userId, -this.currentBet);
+        this.rubies -= this.currentBet;
+        this.rubyText.text = this.rubies.toString();
+        
+        // Close the betting menu
+        this.menuContainer.destroy({ children: true });
+        this.isBettingMenuActive = false;
+        this.resumeGame();
+    } else {
+        // Show not enough rubies message
+        alert('Not enough rubies to place this bet!');
+    }
+});
+
+// Add button to menu container
+this.menuContainer.addChild(betButton);
+    // Blink animation for powerups when available
+    const blinkInterval = setInterval(() => {
+      Object.entries(this.powerupContainers).forEach(([type, powerupContainer]) => {
+        const count = type === 'multiplier' ? this.multiplierPowerupsEarned :
+                     type === 'extra-life' ? this.extraLifePowerupsEarned :
+                     this.bettingPowerupsEarned;
+        
+        if (count > 0) {
+          powerupContainer.alpha = powerupContainer.alpha === 1 ? 0.7 : 1;
+        } else {
+          powerupContainer.alpha = 0.5;
+        }
+      });
+    }, 500);
+    
+    // Store interval for cleanup
+    if (this.powerupBlinkInterval) {
+      clearInterval(this.powerupBlinkInterval);
+    }
+    this.powerupBlinkInterval = blinkInterval;
+    
+    // Add cleanup in the destroy method
+    const originalDestroy = this.destroy;
+    this.destroy = (options?: any) => {
+      if (this.powerupBlinkInterval) {
+        clearInterval(this.powerupBlinkInterval);
+      }
+      originalDestroy.call(this, options);
+    };
+
+    // Add debug visualization for the container
+    const debugRect = new Graphics();
+    debugRect.lineStyle(2, 0x00ff00, 0.5);
+    debugRect.drawRect(0, 0, 240, 240);
+    const container = new Container();
+    container.addChild(debugRect);
+    
+    return container;
+  };
+
+  private createPowerupDisplay = async () => {
     try {
+      const powerupTypes: PowerupType[] = ['multiplier', 'extra-life', 'betting'];
       const powerupContainer = new Container();
+      powerupContainer.width = 75; 
+      powerupContainer.height = 225;
       powerupContainer.x = 20;
-      powerupContainer.y = this.app.renderer.height - 140; // Position at bottom with some padding
+      powerupContainer.y = this.app.screen.height - 250;
+      powerupContainer.interactive = true;
+      powerupContainer.visible = true;
+      powerupContainer.alpha = 1;
+      powerupContainer.eventMode = 'static';
+      powerupContainer.cursor = 'pointer';
+      powerupContainer.hitArea = new Rectangle(0, 0, 75, 245); 
       
-      // Add semi-transparent black background
-      const bg = new Graphics();
-      bg.beginFill(0x000000, 0.7);
-      bg.drawRoundedRect(0, 0, 200, 140, 10); // Increased width to fit better hit areas
-      bg.y = 0;
-      bg.endFill();
-      powerupContainer.addChild(bg);
+      // Add container to the stage - make sure it's on top
+      this.foregroundLayer.addChild(powerupContainer);
+      this.foregroundLayer.sortableChildren = true;
+      powerupContainer.zIndex = 1000; // Ensure it's on top
       
-      // Create powerup icons with blinking animation
-      const powerupTypes = ['multiplier', 'extra-life', 'betting'] as const;
+      // Create powerup rows
+      const rowHeight = 75;
+      const rowSpacing = 10;
       const powerupSprites: Sprite[] = [];
       const powerupTexts: Text[] = [];
       
-      // Make the container interactive to handle clicks
-      powerupContainer.eventMode = 'static';
-      powerupContainer.hitArea = new Rectangle(0, 0, 200, 140);
-      powerupContainer.sortableChildren = true; // Ensure proper z-index handling
-      
-      // Add debug visualization for the container
-      const debugRect = new Graphics();
-      debugRect.lineStyle(2, 0x00ff00, 0.5);
-      debugRect.drawRect(0, 0, 200, 140);
-      powerupContainer.addChild(debugRect);
-      
-      // Stop event propagation to prevent affecting alien movement
-      const stopPropagation = (e: any) => {
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-        return true;
-      };
-      
-      powerupContainer.on('pointerdown', stopPropagation);
-      powerupContainer.on('pointerup', stopPropagation);
-      powerupContainer.on('pointermove', stopPropagation);
-      powerupContainer.on('pointerover', stopPropagation);
-      powerupContainer.on('pointerout', stopPropagation);
-      powerupContainer.on('pointertap', stopPropagation);
-      
       powerupTypes.forEach((type, index) => {
-        // Create a container for each powerup row
         const rowContainer = new Container();
-        rowContainer.y = 40 + index * 30;
+        rowContainer.y = index * (rowHeight + rowSpacing);
         rowContainer.eventMode = 'static';
         rowContainer.cursor = 'pointer';
-        rowContainer.hitArea = new Rectangle(0, 0, 200, 30); // Increased width for better click area
-
+        rowContainer.interactive = true;
+        rowContainer.hitArea = new Rectangle(0, 0, 75, rowHeight);  // Width reduced from 200
+        
+        // Add background for better hit detection
+        const bgGraphics = new Graphics();
+        bgGraphics.beginFill(0x000000, 0.3);
+        bgGraphics.drawRoundedRect(0, 0, 75, rowHeight, 5);
+        bgGraphics.endFill();
+        rowContainer.addChild(bgGraphics);
+        
         // Add hover effect background
         const hoverGraphics = new Graphics();
-        hoverGraphics.beginFill(0xffffff, 0.2);
-        hoverGraphics.drawRoundedRect(0, 0, 200, 30, 5);
+        hoverGraphics.beginFill(0xffffff, 0.3);
+        hoverGraphics.drawRoundedRect(0, 0, 50, rowHeight, 5);
         hoverGraphics.endFill();
         hoverGraphics.visible = false;
         rowContainer.addChild(hoverGraphics);
         
-        // Add hover effects
-        rowContainer.on('pointerover', () => {
-            hoverGraphics.visible = true;
-        });
-        
-        rowContainer.on('pointerout', () => {
-            hoverGraphics.visible = false;
-        });
-        
         // Create powerup icon
         const sprite = new Sprite(this.powerupVisuals.textures[`${type}-1.png`]);
-        sprite.width = 24;
-        sprite.height = 24;
-        sprite.x = 15;
+        sprite.width = 40;
+        sprite.height = 40;
+        sprite.x = (75 - sprite.width) / 2; // Center horizontally in the 75px wide container
+        sprite.y = (rowHeight - sprite.height) / 2 - 5; // Center vertically in the row
         
         // Create powerup count text
         const text = new Text({
           text: '0',
           style: new TextStyle({
             fontFamily: 'Chewy',
-            fontSize: 20,
+            fontSize: 15,
             fill: 0xffffff,
             stroke: { color: 0x000000, width: 2, alpha: 1 }
-          } as any) // Using 'as any' to bypass TypeScript error for stroke
+          } as any)
         });
         text.x = 50;
+        text.y = rowHeight - text.height;
+
         
-        // Add debug logging for the row container
-        console.log(`Creating row for ${type} at y=${rowContainer.y}`);
+        // Add hover effects
+        rowContainer.on('pointerover', () => {
+          hoverGraphics.visible = true;
+        });
         
-        // Add click handler with detailed logging
+        rowContainer.on('pointerout', () => {
+          hoverGraphics.visible = false;
+        });
+        
+        // Add click handler with event prevention
         rowContainer.on('pointerdown', (e) => {
-          console.log(`Pointer down on ${type} row`);
           e.stopPropagation();
-          return true;
         });
         
         rowContainer.on('pointerup', (e) => {
-          console.log(`Pointer up on ${type} row`);
           e.stopPropagation();
-          return true;
         });
         
         rowContainer.on('pointertap', async (e) => {
-          console.log(`Tapped on ${type} row`);
-          e.stopPropagation(); // Prevent event from bubbling up
-          e.stopImmediatePropagation(); // Stop all other handlers
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          
           try {
-            // Check if we have this powerup available
-            const currentCount = parseInt(text.text, 10); // 
+            const currentCount = parseInt(text.text, 10);
             if (currentCount > 0) {
               // Update the active state based on powerup type
               switch (type) {
                 case 'multiplier':
                   this.multiplierActive = true;
-                  console.log('Multiplier powerup activated');
                   break;
                 case 'extra-life':
                   this.extraLifeActive = true;
-                  console.log('Extra life powerup activated');
                   break;
                 case 'betting':
                   this.bettingActive = true;
-                  console.log('Betting powerup activated, ' + this.bettingPowerupsEarned + ' betting powerups earned');
                   this.showBettingMenu();
                   break;
               }
@@ -866,9 +1039,6 @@ export class CosmoClimbScene extends Container implements ResizableScene {
               
               // Update the display
               text.text = `${currentCount - 1}`;
-              
-              // Log the activation
-              console.log(`Activated ${type} powerup`);
               
               // Close the powerup menu after selection
               if ((powerupContainer as any).cleanup) {
@@ -880,23 +1050,11 @@ export class CosmoClimbScene extends Container implements ResizableScene {
           }
         });
         
-        // Add hover effects
-        rowContainer.on('pointerover', (e) => {
-          e.stopPropagation();
-          hoverGraphics.visible = true;
-        });
-        
-        rowContainer.on('pointerout', (e) => {
-          e.stopPropagation();
-          hoverGraphics.visible = false;
-        });
-        
-        // Add all elements to the row container
-        rowContainer.addChild(hoverGraphics);
+        // Add elements to row container
         rowContainer.addChild(sprite);
         rowContainer.addChild(text);
         
-        // Add the row to the main container
+        // Add row to main container
         powerupContainer.addChild(rowContainer);
         
         // Store references for animation and updates
@@ -915,7 +1073,7 @@ export class CosmoClimbScene extends Container implements ResizableScene {
         const frame = isFrame1 ? '1' : '2';
         
         powerupTypes.forEach((type, index) => {
-          if (!powerupSprites[index].destroyed) {
+          if (powerupSprites[index] && !powerupSprites[index].destroyed) {
             powerupSprites[index].texture = this.powerupVisuals.textures[`${type}-${frame}.png`];
           }
         });
@@ -926,8 +1084,8 @@ export class CosmoClimbScene extends Container implements ResizableScene {
         try {
           const powerups = await getUserPowerups(this.userId);
           powerupTypes.forEach((type, index) => {
-            if (!powerupTexts[index].destroyed) {
-              powerupTexts[index].text = `${powerups[type]}`;
+            if (powerupTexts[index] && !powerupTexts[index].destroyed) {
+              powerupTexts[index].text = `${powerups[type] || 0}`;
             }
           });
         } catch (error) {
@@ -940,15 +1098,13 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       const unsubscribe = subscribeToUser(this.userId, (data: any) => {
         const powerups = data?.powerups || {};
         powerupTypes.forEach((type, index) => {
-          if (!powerupTexts[index].destroyed) {
+          if (powerupTexts[index] && !powerupTexts[index].destroyed) {
             powerupTexts[index].text = `${powerups[type] || 0}`;
           }
         });
       });
       
-      this.foregroundLayer.addChild(powerupContainer);
-      
-      // Store references for cleanup
+      // Add cleanup method
       (powerupContainer as any).updatePowerupCounts = updatePowerupCounts;
       (powerupContainer as any).cleanup = () => {
         clearInterval(blinkInterval);
@@ -966,10 +1122,12 @@ export class CosmoClimbScene extends Container implements ResizableScene {
         }
       }, 4000);
       
+      return powerupContainer;
     } catch (error) {
       console.error('Error creating powerup display:', error);
+      return null;
     }
-  }
+  };
 
   private detectMobileAndOptimize() {
     this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -1123,9 +1281,7 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       const worldY = startY + Math.random() * zoneHeight;
       const x = 60 + Math.random() * (this.app.renderer.width - 120);
       // for actual game: 5% chance of rocket, 92% chance of powercell, 1% chance of multiplier, 1% chance of extra life, 1% chance of betting
-      //const powerupType = Math.random() < 0.05 ? 'rocket' : Math.random() < 0.97 ? 'powercell' : Math.random() < 0.98 ? 'multiplier' : Math.random() < 0.99 ? 'extra-life' : 'betting';
-      // for testing game: 5% chance of rocket, 20% chance of powercell, 25% chance of multiplier, 25% chance of extra life, 25% chance of betting
-      const powerupType = Math.random() < 0.05 ? 'rocket' : Math.random() < 0.25 ? 'powercell' : Math.random() < 0.5 ? 'multiplier' : Math.random() < 0.75 ? 'extra-life' : 'betting';
+      const powerupType = Math.random() < 0.05 ? 'rocket' : Math.random() < 0.97 ? 'powercell' : Math.random() < 0.98 ? 'multiplier' : Math.random() < 0.99 ? 'extra-life' : 'betting';
       // Use powerupVisuals spritesheet for all powerups except rocket and powercell
       const isCosmoClimbPowerup = powerupType === 'rocket' || powerupType === 'powercell';
       const spritesheet = isCosmoClimbPowerup ? this.visuals : this.powerupVisuals;
@@ -1403,7 +1559,7 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       this.background.tilePosition.y += dy;
     }
     }
-   
+
   private handleCollisions() {
     if (!this.objectsBeingSucked.has(this.alien)) {
       for (let i = this.monsters.length - 1; i >= 0; i--) {
@@ -1445,7 +1601,7 @@ export class CosmoClimbScene extends Container implements ResizableScene {
           // Normal monster collision 
           this.monsterLayer.removeChild(monster.sprite);
           this.monsters.splice(i, 1);
-          this.handleMonsterCollision();
+          this.handleMonsterCollision(monster);
           return;
       }
 
@@ -1502,7 +1658,8 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       // Check alien collision
       if (!this.objectsBeingSucked.has(this.alien) && 
           Math.abs(this.alien.x - blackHole.x) < 40 &&
-          Math.abs(this.alien.y - blackHole.y) < 40) {
+          Math.abs(this.alien.y - blackHole.y) < 40 && !this.rocketActive) {
+        this.lastCollisionObject = blackHole; // Track the black hole that collided
         this.objectsBeingSucked.set(this.alien, {
           target: blackHole,
           progress: 0,
@@ -1541,13 +1698,22 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   }
 }
 
-  private handleMonsterCollision() {
+  private handleMonsterCollision(monster: any) {
     console.log('handleMonsterCollision', this.isVulnerable);
+    this.lastCollisionObject = monster.sprite; // Track the monster that collided
+    
     if (this.isVulnerable) {
       // Second hit while vulnerable = death
-      this.isGameOver = true;
-      this.showGameOver();
-      return;
+      if (this.extraLifeActive) {
+        this.extraLifeActive = false;
+        this.showExtraLifePowerupDisplay();
+        return;
+      }
+      else {
+        this.isGameOver = true;
+        this.showGameOver();
+        return;
+      }
     }
     else {
       // First hit - take damage
@@ -1588,6 +1754,12 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   }
 
   private updateSuckAnimations() {
+    if (this.objectsBeingSucked.has(this.alien) && this.extraLifeActive) {
+      this.extraLifeActive = false;
+      this.objectsBeingSucked.delete(this.alien);
+      this.showExtraLifePowerupDisplay();
+      return;
+    }
     // Handle suck-in animations for all objects (run every frame for smooth animation)
     for (const [object, suckData] of this.objectsBeingSucked.entries()) {
       suckData.progress += 0.016;
@@ -1671,8 +1843,15 @@ export class CosmoClimbScene extends Container implements ResizableScene {
         const alienRight = this.alien.x + this.alien.width / 2;
         
         if (alienRight > stormLeft && alienLeft < stormRight) {
-          this.isGameOver = true;
-          this.showGameOver();
+          if (this.extraLifeActive) {
+            this.lastCollisionObject = this.solarStorm;
+            this.extraLifeActive = false;
+            this.showExtraLifePowerupDisplay();
+            return;
+          } else {
+            this.isGameOver = true;
+            this.showGameOver();
+          }
         }
       }
     }
