@@ -402,7 +402,6 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       }
       
       // Show rubies earned
-      if (this.rubies > 0) {
         // Add ruby icon
         const rubySprite = new Sprite(this.visuals.textures['ruby.png']);
         rubySprite.width = 32;
@@ -425,17 +424,15 @@ export class CosmoClimbScene extends Container implements ResizableScene {
         rubiesText.x = this.app.renderer.width / 2 + 20;
         rubiesText.y = this.app.renderer.height / 2 + yOffset;
         this.addChild(rubiesText);
-      }
 
       // Show multiplier powerups earned
-      if (this.multiplierPowerupsEarned > 0) {
         // Add multiplier icon
-        const multiplierSprite = new Sprite(this.visuals.textures['multiplier-1.png']);
+        const multiplierSprite = new Sprite(this.powerupVisuals.textures['multiplier-1.png']);
         multiplierSprite.width = 32;
         multiplierSprite.height = 32;
         multiplierSprite.anchor.set(0.5);
         multiplierSprite.x = this.app.renderer.width / 2 - 40;
-        multiplierSprite.y = this.app.renderer.height / 2 + yOffset;
+        multiplierSprite.y = this.app.renderer.height / 2 + yOffset + 34;
         this.addChild(multiplierSprite);
         
         // Add multiplier text
@@ -449,19 +446,17 @@ export class CosmoClimbScene extends Container implements ResizableScene {
         } as any);
         multiplierText.anchor.set(0.5);
         multiplierText.x = this.app.renderer.width / 2 + 20;
-        multiplierText.y = this.app.renderer.height / 2 + yOffset;
+        multiplierText.y = this.app.renderer.height / 2 + yOffset + 34;
         this.addChild(multiplierText);
-      }
       
       // Show extra life powerups earned
-      if (this.extraLifePowerupsEarned > 0) {
         // Add extra life icon
-        const extraLifeSprite = new Sprite(this.visuals.textures['extra-life.png']);
+        const extraLifeSprite = new Sprite(this.powerupVisuals.textures['extra-life-1.png']);
         extraLifeSprite.width = 32;
         extraLifeSprite.height = 32;
         extraLifeSprite.anchor.set(0.5);
         extraLifeSprite.x = this.app.renderer.width / 2 - 40;
-        extraLifeSprite.y = this.app.renderer.height / 2 + yOffset;
+        extraLifeSprite.y = this.app.renderer.height / 2 + yOffset + 68;
         this.addChild(extraLifeSprite);
         
         // Add extra life text
@@ -475,19 +470,17 @@ export class CosmoClimbScene extends Container implements ResizableScene {
         } as any);
         extraLifeText.anchor.set(0.5);
         extraLifeText.x = this.app.renderer.width / 2 + 20;
-        extraLifeText.y = this.app.renderer.height / 2 + yOffset;
+        extraLifeText.y = this.app.renderer.height / 2 + yOffset + 68;
         this.addChild(extraLifeText);
-      }
       
       // Show betting powerups earned
-      if (this.bettingPowerupsEarned > 0) {
         // Add betting icon
-        const bettingSprite = new Sprite(this.visuals.textures['betting.png']);
+        const bettingSprite = new Sprite(this.powerupVisuals.textures['betting-1.png']);
         bettingSprite.width = 32;
         bettingSprite.height = 32;
         bettingSprite.anchor.set(0.5);
         bettingSprite.x = this.app.renderer.width / 2 - 40;
-        bettingSprite.y = this.app.renderer.height / 2 + yOffset;
+        bettingSprite.y = this.app.renderer.height / 2 + yOffset + 102;
         this.addChild(bettingSprite);
         
         // Add betting text
@@ -501,9 +494,8 @@ export class CosmoClimbScene extends Container implements ResizableScene {
         } as any);
         bettingText.anchor.set(0.5);
         bettingText.x = this.app.renderer.width / 2 + 20;
-        bettingText.y = this.app.renderer.height / 2 + yOffset;
+        bettingText.y = this.app.renderer.height / 2 + yOffset + 102;
         this.addChild(bettingText);
-      }
       
       // Remove overlay and reset after delay
       setTimeout(() => {
@@ -548,6 +540,7 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       x: this.velocityX,
       y: this.velocityY
     };
+    console.log(this.storedVelocities);
     // Reset velocities to stop movement
     this.velocityX = 0;
     this.velocityY = 0;
@@ -563,9 +556,13 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     if (this.storedVelocities) {
       this.velocityX = this.storedVelocities.x;
       this.velocityY = this.storedVelocities.y;
+      console.log(this.velocityX, this.velocityY);
       this.storedVelocities = null;
     }
-    this.app.ticker.add(this.update, this);
+    // Only add the update function if it's not already in the ticker
+    if (!this.app.ticker.started || !this.app.ticker['_head'].contains(this.update)) {
+      this.app.ticker.add(this.update, this);
+    }
   }
 
   private showBettingMenu() {
