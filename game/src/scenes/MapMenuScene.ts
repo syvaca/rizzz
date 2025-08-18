@@ -12,10 +12,10 @@ export class MapMenuScene extends Container {
   private visuals!: Spritesheet;
   private outsideClickHandler: (event: any) => void;
   
-  // Coin display variables
-  private coinContainer!: Container;
+  // ruby display variables
+  private rubyContainer!: Container;
   private rubySprite!: Sprite;
-  private coinText!: Text;
+  private rubyText!: Text;
   private multiplierText!: Text;
   private extraLifeText!: Text;
   private bettingText!: Text;
@@ -43,7 +43,7 @@ export class MapMenuScene extends Container {
     this.calculateZoomLevel();
     this.createMap();
     this.setupScrolling();
-    this.createCoinDisplay();
+    this.createrubyDisplay();
   }
 
   private calculateZoomLevel() {
@@ -87,10 +87,10 @@ export class MapMenuScene extends Container {
     }
   }
 
-  private async createCoinDisplay() {
+  private async createrubyDisplay() {
     try {
-      // Create container for coin display
-      this.coinContainer = new Container();
+      // Create container for ruby display
+      this.rubyContainer = new Container();
       
       // Load ruby sprite
       const rubyTexture = await Assets.load('/assets/sprites/ruby.png');
@@ -99,7 +99,7 @@ export class MapMenuScene extends Container {
       this.rubySprite.height = 32;
       this.rubySprite.x = 0;
       this.rubySprite.y = 0;
-      this.coinContainer.addChild(this.rubySprite);
+      this.rubyContainer.addChild(this.rubySprite);
 
       // load powerup sprites
       // Create multiplier sprite with blinking animation
@@ -108,7 +108,7 @@ export class MapMenuScene extends Container {
       multiplierSprite.height = 32;
       multiplierSprite.x = 0;
       multiplierSprite.y = 34;
-      this.coinContainer.addChild(multiplierSprite);
+      this.rubyContainer.addChild(multiplierSprite);
       
       // Create extra life sprite
       const extraLifeSprite = new Sprite(this.visuals.textures['extra-life-1.png']);
@@ -116,7 +116,7 @@ export class MapMenuScene extends Container {
       extraLifeSprite.height = 32;
       extraLifeSprite.x = 0;
       extraLifeSprite.y = 68;
-      this.coinContainer.addChild(extraLifeSprite);
+      this.rubyContainer.addChild(extraLifeSprite);
 
       // Create betting sprite
       const bettingSprite = new Sprite(this.visuals.textures['betting-1.png']);
@@ -124,7 +124,7 @@ export class MapMenuScene extends Container {
       bettingSprite.height = 32;
       bettingSprite.x = 0;
       bettingSprite.y = 102;
-      this.coinContainer.addChild(bettingSprite);
+      this.rubyContainer.addChild(bettingSprite);
       
       // Add synchronized blinking animation to all powerup sprites
       let isFrame1 = true;
@@ -138,17 +138,17 @@ export class MapMenuScene extends Container {
         bettingSprite.texture = this.visuals.textures[`betting-${frame}.png`];
       }, 500); // Toggle all sprites together every 500ms
 
-      // Create coin text
-      const coins = await getUserRubies(this.userId);
-      this.coinText = new Text(`${coins}`, {
+      // Create ruby text
+      const rubies = await getUserRubies(this.userId);
+      this.rubyText = new Text(`${rubies}`, {
         fontFamily: 'Chewy',
         fontSize: 28,
         fill: 0xffffff,
         fontWeight: 'bold'
       });
-      this.coinText.x = 40; // Position after ruby sprite
-      this.coinText.y = 0;
-      this.coinContainer.addChild(this.coinText);
+      this.rubyText.x = 40; // Position after ruby sprite
+      this.rubyText.y = 0;
+      this.rubyContainer.addChild(this.rubyText);
       
       // Create powerup text
       const powerups = await getUserPowerups(this.userId);
@@ -160,7 +160,7 @@ export class MapMenuScene extends Container {
       });
       this.multiplierText.x = 40;
       this.multiplierText.y = 34;
-      this.coinContainer.addChild(this.multiplierText);
+      this.rubyContainer.addChild(this.multiplierText);
 
       this.extraLifeText = new Text(`${powerups['extra-life']}`, {
         fontFamily: 'Chewy',
@@ -170,7 +170,7 @@ export class MapMenuScene extends Container {
       });
       this.extraLifeText.x = 40;
       this.extraLifeText.y = 68;
-      this.coinContainer.addChild(this.extraLifeText);
+      this.rubyContainer.addChild(this.extraLifeText);
 
       this.bettingText = new Text(`${powerups['betting']}`, {
         fontFamily: 'Chewy',
@@ -180,27 +180,22 @@ export class MapMenuScene extends Container {
       });
       this.bettingText.x = 40;
       this.bettingText.y = 102;
-      this.coinContainer.addChild(this.bettingText);
-      
+      this.rubyContainer.addChild(this.bettingText);
+
       // Position dynamically based on text width
-      this.updateCoinDisplayPosition();
+      this.updaterubyDisplayPosition();
       
-      this.addChild(this.coinContainer);
+      this.addChild(this.rubyContainer);
       
     } catch (error) {
-      console.error('Could not create coin display:', error);
+      console.error('Could not create ruby display:', error);
     }
   }
 
-  private updateCoinDisplayPosition() {
-    if (this.coinContainer && this.coinText && this.multiplierText && this.extraLifeText && this.bettingText) {
-      // Calculate total width of the display (ruby + spacing + text)
-      const totalWidth = 40 + this.coinText.width; // 40px for ruby + spacing
-      const padding = 20; // Padding from screen edge
-      
-      // Position from right edge, ensuring it doesn't go off screen
-      this.coinContainer.x = this.app.renderer.width - totalWidth - padding;
-      this.coinContainer.y = 20;
+  private updaterubyDisplayPosition() {
+    if (this.rubyContainer && this.rubyText && this.multiplierText && this.extraLifeText && this.bettingText) {
+      this.rubyContainer.x = 20; // Padding from screen edge
+      this.rubyContainer.y = 20;
     }
   }
 
@@ -450,9 +445,9 @@ export class MapMenuScene extends Container {
       this.currentPopup.resize();
     }
     
-    // Reposition coin display in upper right corner
-    if (this.coinContainer) {
-      this.updateCoinDisplayPosition();
+    // Reposition ruby display in upper right corner
+    if (this.rubyContainer) {
+      this.updaterubyDisplayPosition();
     }
 
     // Recalculate zoom level for new screen size
@@ -466,10 +461,10 @@ export class MapMenuScene extends Container {
       // Recenter the map to maintain a good position after resize
       this.centerMap();
       
-      // Update coin display position
-      if (this.coinContainer) {
-        this.coinContainer.x = window.innerWidth - 80;
-        this.coinContainer.y = 20;
+      // Update ruby display position
+      if (this.rubyContainer) {
+        this.rubyContainer.x = 20;
+        this.rubyContainer.y = 20;
       }
     }
   }
