@@ -93,9 +93,21 @@ export class GemHuntGame extends Container {
     this.startButton = Sprite.from('play button.png');
     this.startButton.eventMode = 'static';
     this.startButton.cursor = 'pointer';
-    this.startButton.on('pointerdown', () => {
+    this.startButton.on('pointerdown', async () => {
+      // if not enough rubies, show error message and return to map
+      const userRubies = await getUserRubies(this.userId);
+      if (userRubies < this.currentBet) {
+        this.startText.text = 'Not enough rubies';
+        this.startText.style.fill = 0xff0000; // Change text color to red
+        setTimeout(() => {
+          this.onReturnToMap();
+        }, 2000);
+        return;
+      }
+      // Otherwise, start the game
       this.removeChild(this.startScreen);
     });
+
     this.startScreen.addChild(this.startButton);
     this.addChild(this.startScreen);
 
