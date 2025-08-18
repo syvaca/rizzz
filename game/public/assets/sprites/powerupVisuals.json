@@ -1,0 +1,135 @@
+{
+	"frames": {
+		"betting-1.png": {
+			"frame": {
+				"x": 1,
+				"y": 1,
+				"w": 185,
+				"h": 186
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 185,
+				"h": 186
+			},
+			"sourceSize": {
+				"w": 185,
+				"h": 186
+			}
+		},
+		"betting-2.png": {
+			"frame": {
+				"x": 188,
+				"y": 1,
+				"w": 186,
+				"h": 186
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 186,
+				"h": 186
+			},
+			"sourceSize": {
+				"w": 186,
+				"h": 186
+			}
+		},
+		"extra-life-1.png": {
+			"frame": {
+				"x": 1,
+				"y": 189,
+				"w": 190,
+				"h": 190
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 190,
+				"h": 190
+			},
+			"sourceSize": {
+				"w": 190,
+				"h": 190
+			}
+		},
+		"extra-life-2.png": {
+			"frame": {
+				"x": 193,
+				"y": 189,
+				"w": 189,
+				"h": 192
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 189,
+				"h": 192
+			},
+			"sourceSize": {
+				"w": 189,
+				"h": 192
+			}
+		},
+		"multiplier-1.png": {
+			"frame": {
+				"x": 384,
+				"y": 1,
+				"w": 192,
+				"h": 191
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 192,
+				"h": 191
+			},
+			"sourceSize": {
+				"w": 192,
+				"h": 191
+			}
+		},
+		"multiplier-2.png": {
+			"frame": {
+				"x": 384,
+				"y": 194,
+				"w": 191,
+				"h": 191
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 191,
+				"h": 191
+			},
+			"sourceSize": {
+				"w": 191,
+				"h": 191
+			}
+		}
+	},
+	"meta": {
+		"app": "http://www.codeandweb.com/texturepacker",
+		"version": "1.0",
+		"image": "powerupVisuals.png",
+		"format": "RGBA8888",
+		"size": {
+			"w": 577,
+			"h": 386
+		},
+		"scale": "1"
+	}
+}

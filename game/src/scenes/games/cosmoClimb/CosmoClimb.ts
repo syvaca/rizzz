@@ -1,11 +1,17 @@
-import { Application, Container, Sprite, Text, Ticker, Graphics, TilingSprite, Texture, Spritesheet, Assets, Rectangle } from 'pixi.js';
+import { Application, Container, Sprite, Text, TextStyle, TilingSprite, Graphics, Spritesheet, Rectangle, Ticker, Assets, Texture } from 'pixi.js';
 import { ResizableScene } from '../../SceneManager';
 import { 
   getUserRubies, 
   updateUserRubies, 
   getUserHighScore, 
-  updateUserHighScore 
+  updateUserHighScore, 
+  updateUserPowerups,
+  getUserPowerups,
+  subscribeToUser,
+  usePowerup
 } from '../../../firebase';
+
+type PowerupType = 'multiplier' | 'extra-life' | 'betting';
 
 
 interface Monster {
@@ -19,7 +25,7 @@ interface Monster {
 
 interface Powerup {
   sprite: Sprite;
-  type: 'rocket' | 'powercell';
+  type: 'rocket' | 'powercell' | 'multiplier' | 'extra-life' | 'betting';
 }
 
 export class CosmoClimbScene extends Container implements ResizableScene {
@@ -39,6 +45,9 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   private usingKeyboard: boolean = false;
   private touchDirection: number = 0;
   private score: number = 0;
+  private multiplierPowerupsEarned: number = 0;
+  private extraLifePowerupsEarned: number = 0;
+  private bettingPowerupsEarned: number = 0;
   private scoreText!: Text;
   private highScoreText!: Text;
   private rubyText!: Text;
@@ -97,22 +106,39 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   private powercellActive: boolean = false;
   private powercellTimer: number = 0;
   private powercellBoostAmount: number = 0;
+  private multiplierActive: boolean = false;
+  private extraLifeActive: boolean = false;
+  private bettingActive: boolean = false;
   
   // Damage system
   private isVulnerable: boolean = false;
   private damageTimer: number = 0;
+  private isPaused: boolean = false;
+  private storedVelocities: { x: number, y: number } | null = null;
+  private isBettingMenuActive: boolean = false;
+  private betText!: Text;
+  private betSlider!: Graphics;
+  private betSliderHandle!: Graphics;
+  private betValue!: Text;
+  private currentBet: number = 1;
   private damageDuration: number = 5000; // 5 seconds of vulnerability
   private slowdownTimer: number = 0;
   private slowdownDuration: number = 1000; // 1 second of slowdown
   private slowdownMultiplier: number = 0.8; // 20% speed reduction
   private background!: TilingSprite;
   private visuals!: Spritesheet;
+  private powerupVisuals!: Spritesheet;
+  private powerupCounts: Record<string, Text> = {};
+  private powerupContainers: Record<string, Container> = {};
+  private lastCollisionObject: Sprite | null = null; // Track the last object that collided with the alien
+  private powerupBlinkInterval?: number;
   private startOverlay?: Container;
   // Container layers for proper z-ordering
   private backgroundLayer!: Container;
   private blackHoleLayer!: Container;
   private powerupLayer!: Container;
   private monsterLayer!: Container;
+  private menuContainer!: Container;
   private alienLayer!: Container;
   private foregroundLayer!: Container;
   private gameStarted: boolean = false;
@@ -160,7 +186,9 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   private async init() {
     this.detectMobileAndOptimize();
     
+    // Load visuals from cosmoClimbVisuals and powerupVisuals
     this.visuals = Assets.get('cosmoClimbVisuals') as Spritesheet;
+    this.powerupVisuals = Assets.get('powerupVisuals') as Spritesheet;
     
     // Initialize container layers for proper z-ordering
     this.backgroundLayer = new Container();
@@ -182,6 +210,7 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     this.generateAlien();
     this.generateSolarStorm();
     this.generateScoreText();
+    await this.createPowerupDisplay();
     
     this.showStartOverlay();
     
@@ -234,7 +263,7 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   }
 
   private update = () => {
-    if (this.isGameOver || !this.gameStarted) return;
+    if (!this.gameStarted || this.isGameOver || this.isPaused) return;
     
     this.frameCount++;
     
@@ -250,7 +279,6 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     this.cleanupOffScreenObjects();
     this.updateVisualEffects();
     this.updateMonsterMovement();
-    this.checkGameOverConditions();
   };
 
   private checkDynamicGeneration() {
@@ -271,19 +299,93 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     }
   }
 
-  private checkGameOverConditions() {
-
-    // Game over if alien falls off bottom (only if not being sucked)
-    if (!this.objectsBeingSucked.has(this.alien) && this.alien.y > this.app.renderer.height) {
-      this.isGameOver = true;
-      this.showGameOver();
+  private removeCollisionObject(obj: Sprite | null) {
+    if (!obj) return;
+    
+    // Remove from appropriate array and layer based on object type
+    const monsterIndex = this.monsters.findIndex(m => m.sprite === obj);
+    if (monsterIndex > -1) {
+      this.monsters.splice(monsterIndex, 1);
+      this.monsterLayer.removeChild(obj);
+    } else if (this.blackHoles.includes(obj)) {
+      const blackHoleIndex = this.blackHoles.indexOf(obj);
+      if (blackHoleIndex > -1) {
+        this.blackHoles.splice(blackHoleIndex, 1);
+      }
+      this.blackHoleLayer.removeChild(obj);
     }
+    
+    // Also remove from objectsBeingSucked if it exists there
+    if (this.objectsBeingSucked.has(obj)) {
+      this.objectsBeingSucked.delete(obj);
+    }
+  }
+
+  private showExtraLifePowerupDisplay() {
+    // Remove the object that caused the collision
+    console.log("lastCollisionObject: ", this.lastCollisionObject);
+    if (this.lastCollisionObject && this.lastCollisionObject != this.solarStorm) {
+      this.removeCollisionObject(this.lastCollisionObject);
+    }
+    
+    this.pauseGame();
+    // Create and show the 'Extra Life Used!' text
+    const style = new TextStyle({
+      fontFamily: 'Chewy',
+      fontSize: 36,
+      fill: '#ffffff',
+      stroke: { color: '#000000', width: 4, alpha: 1 },
+    });
+
+    const extraLifeText = new Text({
+      text: 'Extra Life Used!',
+      style: style
+    });
+    
+    // Position the text in the center of the screen
+    extraLifeText.anchor.set(0.5);
+    extraLifeText.x = this.app.screen.width / 2;
+    extraLifeText.y = this.app.screen.height / 2;
+    extraLifeText.zIndex = 2000; // Make sure it's on top of everything
+    
+    // Add to stage
+    this.foregroundLayer.addChild(extraLifeText);
+    
+    // Set a timer to remove the text and reset positions after 2 seconds
+    setTimeout(() => {
+      // Remove the text
+      this.foregroundLayer.removeChild(extraLifeText);
+      
+      // Reset solar storm position
+      this.resetSolarStormPosition();
+
+      this.lastCollisionObject = null;
+      
+      // Reset vulnerability state
+      this.isVulnerable = false;
+      this.resumeGame();
+      
+    }, 2000);
+  }
+  
+  private resetSolarStormPosition() {
+    // Reset solar storm to starting position (adjust based on your game's starting position)
+    this.solarStormY = this.alien.y + 840;
+    this.solarStorm.y = this.solarStormY - this.alien.y;
   }
 
   private async showGameOver() {
     // Submit score and rubies to Firebase
     const gameId = 'cosmo-climb'; // Match the ID in games.ts
-    const finalScore = this.score;
+    let finalScore = this.score;
+    if (this.bettingActive) {
+      if (this.currentBet < this.rubies) {
+        finalScore = this.score *5;
+      }
+      else {
+        finalScore = 0;
+      }
+    }
     
     try {
       // Save rubies to Firebase
@@ -369,7 +471,6 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       }
       
       // Show rubies earned
-      if (this.rubies > 0) {
         // Add ruby icon
         const rubySprite = new Sprite(this.visuals.textures['ruby.png']);
         rubySprite.width = 32;
@@ -392,7 +493,78 @@ export class CosmoClimbScene extends Container implements ResizableScene {
         rubiesText.x = this.app.renderer.width / 2 + 20;
         rubiesText.y = this.app.renderer.height / 2 + yOffset;
         this.addChild(rubiesText);
-      }
+
+      // Show multiplier powerups earned
+        // Add multiplier icon
+        const multiplierSprite = new Sprite(this.powerupVisuals.textures['multiplier-1.png']);
+        multiplierSprite.width = 32;
+        multiplierSprite.height = 32;
+        multiplierSprite.anchor.set(0.5);
+        multiplierSprite.x = this.app.renderer.width / 2 - 40;
+        multiplierSprite.y = this.app.renderer.height / 2 + yOffset + 34;
+        this.addChild(multiplierSprite);
+        
+        // Add multiplier text
+        const multiplierText = new Text(`x${this.multiplierPowerupsEarned}`, {
+          fontFamily: 'Chewy',
+          fontSize: 36,
+          fill: 0xffffff,
+          stroke: 0x000000,
+          strokeThickness: 3,
+          align: 'center'
+        } as any);
+        multiplierText.anchor.set(0.5);
+        multiplierText.x = this.app.renderer.width / 2 + 20;
+        multiplierText.y = this.app.renderer.height / 2 + yOffset + 34;
+        this.addChild(multiplierText);
+      
+      // Show extra life powerups earned
+        // Add extra life icon
+        const extraLifeSprite = new Sprite(this.powerupVisuals.textures['extra-life-1.png']);
+        extraLifeSprite.width = 32;
+        extraLifeSprite.height = 32;
+        extraLifeSprite.anchor.set(0.5);
+        extraLifeSprite.x = this.app.renderer.width / 2 - 40;
+        extraLifeSprite.y = this.app.renderer.height / 2 + yOffset + 68;
+        this.addChild(extraLifeSprite);
+        
+        // Add extra life text
+        const extraLifeText = new Text(`x${this.extraLifePowerupsEarned}`, {
+          fontFamily: 'Chewy',
+          fontSize: 36,
+          fill: 0xffffff,
+          stroke: 0x000000,
+          strokeThickness: 3,
+          align: 'center'
+        } as any);
+        extraLifeText.anchor.set(0.5);
+        extraLifeText.x = this.app.renderer.width / 2 + 20;
+        extraLifeText.y = this.app.renderer.height / 2 + yOffset + 68;
+        this.addChild(extraLifeText);
+      
+      // Show betting powerups earned
+        // Add betting icon
+        const bettingSprite = new Sprite(this.powerupVisuals.textures['betting-1.png']);
+        bettingSprite.width = 32;
+        bettingSprite.height = 32;
+        bettingSprite.anchor.set(0.5);
+        bettingSprite.x = this.app.renderer.width / 2 - 40;
+        bettingSprite.y = this.app.renderer.height / 2 + yOffset + 102;
+        this.addChild(bettingSprite);
+        
+        // Add betting text
+        const bettingText = new Text(`x${this.bettingPowerupsEarned}`, {
+          fontFamily: 'Chewy',
+          fontSize: 36,
+          fill: 0xffffff,
+          stroke: 0x000000,
+          strokeThickness: 3,
+          align: 'center'
+        } as any);
+        bettingText.anchor.set(0.5);
+        bettingText.x = this.app.renderer.width / 2 + 20;
+        bettingText.y = this.app.renderer.height / 2 + yOffset + 102;
+        this.addChild(bettingText);
       
       // Remove overlay and reset after delay
       setTimeout(() => {
@@ -428,6 +600,534 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       }, 2000);
     }
   }
+
+  private pauseGame() {
+    if (this.isPaused) return;
+    
+    this.isPaused = true;
+    this.storedVelocities = {
+      x: this.velocityX,
+      y: this.velocityY
+    };
+    console.log(this.storedVelocities);
+    // Reset velocities to stop movement
+    this.velocityX = 0;
+    this.velocityY = 0;
+    this.keyboardTilt = 0;
+    this.touchDirection = 0;
+    this.app.ticker.remove(this.update, this);
+  }
+
+  private resumeGame() {
+    if (!this.isPaused) return;
+    
+    this.isPaused = false;
+    if (this.storedVelocities) {
+      this.velocityX = this.storedVelocities.x;
+      this.velocityY = this.storedVelocities.y;
+      console.log(this.velocityX, this.velocityY);
+      this.storedVelocities = null;
+    }
+    // Only add the update function if it's not already in the ticker
+    if (!this.app.ticker.started || !this.app.ticker['_head'].contains(this.update)) {
+      this.app.ticker.add(this.update, this);
+    }
+  }
+
+  private activatePowerup(type: 'multiplier' | 'extra-life' | 'betting') {
+    // Implement powerup activation logic here
+    console.log(`Activating powerup: ${type}`);
+    
+    // Example implementation - you'll need to adjust this based on your game's needs
+    switch (type) {
+      case 'multiplier':
+        this.multiplierActive = true;
+        this.multiplierPowerupsEarned--;
+        break;
+      case 'extra-life':
+        this.extraLifeActive = true;
+        this.extraLifePowerupsEarned--;
+        break;
+      case 'betting':
+        this.bettingActive = true;
+        this.bettingPowerupsEarned--;
+        this.showBettingMenu();
+        break;
+    }
+    
+    // Update the UI to reflect the change
+    this.updatePowerupCounts();
+  }
+  
+  private updatePowerupCounts() {
+    // Update the display of powerup counts
+    if (this.powerupCounts['multiplier']) {
+      this.powerupCounts['multiplier'].text = this.multiplierPowerupsEarned.toString();
+      this.powerupContainers['multiplier'].alpha = this.multiplierPowerupsEarned > 0 ? 1 : 0.5;
+    }
+    
+    if (this.powerupCounts['extra-life']) {
+      this.powerupCounts['extra-life'].text = this.extraLifePowerupsEarned.toString();
+      this.powerupContainers['extra-life'].alpha = this.extraLifePowerupsEarned > 0 ? 1 : 0.5;
+    }
+    
+    if (this.powerupCounts['betting']) {
+      this.powerupCounts['betting'].text = this.bettingPowerupsEarned.toString();
+      this.powerupContainers['betting'].alpha = this.bettingPowerupsEarned > 0 ? 1 : 0.5;
+    }
+  }
+
+  private showBettingMenu() {
+    // Pause the game and show betting menu
+    this.isBettingMenuActive = true;
+    this.pauseGame();
+    
+    // Create overlay background
+    const overlay = new Graphics();
+    overlay.beginFill(0x000000, 0.7);
+    overlay.drawRect(0, 0, this.app.renderer.width, this.app.renderer.height);
+    overlay.endFill();
+    overlay.interactive = true;
+    overlay.zIndex = 1000;
+    this.addChild(overlay);
+    
+    // Create container for betting menu
+    this.menuContainer = new Container();
+    this.menuContainer.width = 300;
+    this.menuContainer.height = 200;
+    this.menuContainer.x = (this.app.renderer.width - 300) / 2;
+    this.menuContainer.y = (this.app.renderer.height - 200) / 2;
+    this.menuContainer.zIndex = 1001;
+    
+    // Add background for menu
+    const menuBg = new Graphics();
+    menuBg.beginFill(0x333333);
+    menuBg.drawRoundedRect(0, 0, 300, 200, 15);
+    menuBg.endFill();
+    this.menuContainer.addChild(menuBg);
+    
+    // Add title
+    const title = new Text('All or nothing! Hit your goal for 5× Rubies!', {
+      fontFamily: 'Chewy',
+      fontSize: 28,
+      fill: 0xffffff,
+      align: 'center'
+    });
+    title.x = 150 - title.width / 2;
+    title.y = 20;
+    this.menuContainer.addChild(title);
+    
+    // Create slider
+    this.createBetSlider();
+    
+    // Add BET! button
+    const betButton = new Graphics();
+    betButton.beginFill(0x4CAF50);
+    betButton.drawRoundedRect(100, 160, 100, 30, 10);
+    betButton.endFill();
+    betButton.interactive = true;
+    betButton.cursor = 'pointer';
+    
+    const goText = new Text('BET!', {
+      fontFamily: 'Chewy',
+      fontSize: 20,
+      fill: 0xffffff
+    });
+    goText.x = 150 - goText.width / 2;
+    goText.y = 165;
+    
+    betButton.addChild(goText);
+    this.menuContainer.addChild(betButton);
+    
+    // Handle BET! button click
+    betButton.on('pointerdown', () => {
+      // Set the bet and resume game
+      (this as any).userBet = this.currentBet;
+      console.log(this.currentBet)
+      this.removeChild(overlay);
+      this.removeChild(this.menuContainer);
+      this.isBettingMenuActive = false; // Clear the betting menu flag
+      this.resumeGame();
+    });
+    
+    this.addChild(this.menuContainer);
+  }
+
+  private createBetSlider() {
+    const sliderWidth = 200;
+    const sliderHeight = 8;
+    const handleSize = 20;
+    const containerWidth = 300; // Width of the menu container
+    const sliderX = (containerWidth - sliderWidth) / 2; // Center the slider
+    const sliderY = 100; // Position below the title
+
+    // Slider track
+    this.betSlider = new Graphics();
+    this.betSlider.beginFill(0x666666);
+    this.betSlider.drawRoundedRect(0, 0, sliderWidth, sliderHeight, 4);
+    this.betSlider.endFill();
+    this.betSlider.lineStyle(2, 0xffffff);
+    this.betSlider.drawRoundedRect(0, 0, sliderWidth, sliderHeight, 4);
+    this.betSlider.x = sliderX;
+    this.betSlider.y = sliderY;
+    this.menuContainer.addChild(this.betSlider);
+
+    // Slider handle
+    this.betSliderHandle = new Graphics();
+    this.betSliderHandle.beginFill(0xffffff);
+    this.betSliderHandle.drawCircle(0, 0, handleSize / 2);
+    this.betSliderHandle.endFill();
+    this.betSliderHandle.lineStyle(2, 0x000000);
+    this.betSliderHandle.drawCircle(0, 0, handleSize / 2);
+    this.betSliderHandle.x = sliderX;
+    this.betSliderHandle.y = sliderY + sliderHeight / 2;
+    this.betSliderHandle.eventMode = 'static';
+    this.betSliderHandle.cursor = 'pointer';
+    this.menuContainer.addChild(this.betSliderHandle);
+
+    // Bet value text
+    this.betValue = new Text('1', {
+      fontFamily: 'Chewy',
+      fontSize: 18,
+      fill: 0xffffff,
+      stroke: 0x000000
+    });
+    this.betValue.x = sliderX + sliderWidth + 10;
+    this.betValue.y = sliderY - 9; // Vertically center with slider
+    this.menuContainer.addChild(this.betValue);
+
+    // Ruby sprite
+    this.rubySprite = Sprite.from('ruby.png');
+    this.rubySprite.scale.set(0.1);
+    this.rubySprite.x = sliderX + sliderWidth + 40; // Position to the right of the value
+    this.rubySprite.y = sliderY - 10; // Vertically center with slider
+    this.menuContainer.addChild(this.rubySprite);
+
+    // Set up slider interaction
+    this.setupSliderInteraction();
+  }
+
+  private setupSliderInteraction() {
+    let isDragging = false;
+    let dragStartX = 0;
+    let sliderStartX = 0;
+
+    this.betSliderHandle.on('pointerdown', (event: any) => {
+      isDragging = true;
+      dragStartX = event.global.x;
+      sliderStartX = this.betSliderHandle.x;
+    });
+
+    this.app.stage.on('pointermove', async (event: any) => {
+      if (!isDragging) return;
+
+      const deltaX = event.global.x - dragStartX;
+      let newX = sliderStartX + deltaX;
+      
+      // Constrain to slider bounds
+      const sliderX = this.betSlider.x;
+      const sliderWidth = 200;
+      const minX = sliderX;
+      const maxX = sliderX + sliderWidth;
+      newX = Math.max(minX, Math.min(maxX, newX));
+      
+      this.betSliderHandle.x = newX;
+      
+      // Update bet value based on position within slider bounds
+      const ratio = (newX - minX) / (maxX - minX);
+      const rubies = await getUserRubies(this.userId);
+      this.currentBet = Math.round(1 + ratio * Math.min(49, rubies)); // 1 to min(50, rubies)
+      this.betValue.text = this.currentBet.toString();
+    });
+
+// Create bet button
+const betButton = new Graphics() as Graphics & { buttonMode: boolean };
+betButton.beginFill(0x4CAF50); // Green color
+betButton.drawRoundedRect(0, 0, 200, 50, 25);
+betButton.endFill();
+betButton.x = 50;
+betButton.y = 150;
+betButton.interactive = true;
+betButton.buttonMode = true;
+
+// Add text to button
+const goText = new Text('BET!', {
+    fontFamily: 'Chewy',
+    fontSize: 24,
+    fill: 0xffffff,
+    align: 'center'
+});
+goText.anchor.set(0.5);
+goText.x = betButton.width / 2;
+goText.y = betButton.height / 2;
+
+// Add text to button
+betButton.addChild(goText);
+
+// Add click handler
+betButton.on('pointertap', async () => {
+    // Handle bet placement here
+    const rubies = await getUserRubies(this.userId);
+    if (rubies >= this.currentBet) {
+        await updateUserRubies(this.userId, -this.currentBet);
+        this.rubies -= this.currentBet;
+        this.rubyText.text = this.rubies.toString();
+        
+        // Close the betting menu
+        this.menuContainer.destroy({ children: true });
+        this.isBettingMenuActive = false;
+        this.resumeGame();
+    } else {
+        // Show not enough rubies message
+        alert('Not enough rubies to place this bet!');
+    }
+});
+
+// Add button to menu container
+this.menuContainer.addChild(betButton);
+    // Blink animation for powerups when available
+    const blinkInterval = setInterval(() => {
+      Object.entries(this.powerupContainers).forEach(([type, powerupContainer]) => {
+        const count = type === 'multiplier' ? this.multiplierPowerupsEarned :
+                     type === 'extra-life' ? this.extraLifePowerupsEarned :
+                     this.bettingPowerupsEarned;
+        
+        if (count > 0) {
+          powerupContainer.alpha = powerupContainer.alpha === 1 ? 0.7 : 1;
+        } else {
+          powerupContainer.alpha = 0.5;
+        }
+      });
+    }, 500);
+    
+    // Store interval for cleanup
+    if (this.powerupBlinkInterval) {
+      clearInterval(this.powerupBlinkInterval);
+    }
+    this.powerupBlinkInterval = blinkInterval;
+    
+    // Add cleanup in the destroy method
+    const originalDestroy = this.destroy;
+    this.destroy = (options?: any) => {
+      if (this.powerupBlinkInterval) {
+        clearInterval(this.powerupBlinkInterval);
+      }
+      originalDestroy.call(this, options);
+    };
+
+    // Add debug visualization for the container
+    const debugRect = new Graphics();
+    debugRect.lineStyle(2, 0x00ff00, 0.5);
+    debugRect.drawRect(0, 0, 240, 240);
+    const container = new Container();
+    container.addChild(debugRect);
+    
+    return container;
+  };
+
+  private createPowerupDisplay = async () => {
+    try {
+      const powerupTypes: PowerupType[] = ['multiplier', 'extra-life', 'betting'];
+      const powerupContainer = new Container();
+      powerupContainer.width = 75; 
+      powerupContainer.height = 225;
+      powerupContainer.x = 20;
+      powerupContainer.y = this.app.screen.height - 250;
+      powerupContainer.interactive = true;
+      powerupContainer.visible = true;
+      powerupContainer.alpha = 1;
+      powerupContainer.eventMode = 'static';
+      powerupContainer.cursor = 'pointer';
+      powerupContainer.hitArea = new Rectangle(0, 0, 75, 245); 
+      
+      // Add container to the stage - make sure it's on top
+      this.foregroundLayer.addChild(powerupContainer);
+      this.foregroundLayer.sortableChildren = true;
+      powerupContainer.zIndex = 1000; // Ensure it's on top
+      
+      // Create powerup rows
+      const rowHeight = 75;
+      const rowSpacing = 10;
+      const powerupSprites: Sprite[] = [];
+      const powerupTexts: Text[] = [];
+      
+      powerupTypes.forEach((type, index) => {
+        const rowContainer = new Container();
+        rowContainer.y = index * (rowHeight + rowSpacing);
+        rowContainer.eventMode = 'static';
+        rowContainer.cursor = 'pointer';
+        rowContainer.interactive = true;
+        rowContainer.hitArea = new Rectangle(0, 0, 75, rowHeight);  // Width reduced from 200
+        
+        // Add background for better hit detection
+        const bgGraphics = new Graphics();
+        bgGraphics.beginFill(0x000000, 0.3);
+        bgGraphics.drawRoundedRect(0, 0, 75, rowHeight, 5);
+        bgGraphics.endFill();
+        rowContainer.addChild(bgGraphics);
+        
+        // Add hover effect background
+        const hoverGraphics = new Graphics();
+        hoverGraphics.beginFill(0xffffff, 0.3);
+        hoverGraphics.drawRoundedRect(0, 0, 75, rowHeight, 5);
+        hoverGraphics.endFill();
+        hoverGraphics.visible = false;
+        rowContainer.addChild(hoverGraphics);
+        
+        // Create powerup icon
+        const sprite = new Sprite(this.powerupVisuals.textures[`${type}-1.png`]);
+        sprite.width = 40;
+        sprite.height = 40;
+        sprite.x = (75 - sprite.width) / 2; // Center horizontally in the 75px wide container
+        sprite.y = (rowHeight - sprite.height) / 2 - 5; // Center vertically in the row
+        
+        // Create powerup count text
+        const text = new Text({
+          text: '0',
+          style: new TextStyle({
+            fontFamily: 'Chewy',
+            fontSize: 15,
+            fill: 0xffffff,
+            stroke: { color: 0x000000, width: 2, alpha: 1 }
+          } as any)
+        });
+        text.x = 50;
+        text.y = rowHeight - text.height;
+
+        
+        // Add hover effects
+        rowContainer.on('pointerover', () => {
+          hoverGraphics.visible = true;
+        });
+        
+        rowContainer.on('pointerout', () => {
+          hoverGraphics.visible = false;
+        });
+        
+        // Add click handler with event prevention
+        rowContainer.on('pointerdown', (e) => {
+          e.stopPropagation();
+        });
+        
+        rowContainer.on('pointerup', (e) => {
+          e.stopPropagation();
+        });
+        
+        rowContainer.on('pointertap', async (e) => {
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+          
+          try {
+            const currentCount = parseInt(text.text, 10);
+            if (currentCount > 0) {
+              // Update the active state based on powerup type
+              switch (type) {
+                case 'multiplier':
+                  this.multiplierActive = true;
+                  break;
+                case 'extra-life':
+                  this.extraLifeActive = true;
+                  break;
+                case 'betting':
+                  this.bettingActive = true;
+                  this.showBettingMenu();
+                  break;
+              }
+              
+              // Decrement the count in Firebase
+              await usePowerup(this.userId, type);
+              
+              // Update the display
+              text.text = `${currentCount - 1}`;
+              
+              // Close the powerup menu after selection
+              if ((powerupContainer as any).cleanup) {
+                (powerupContainer as any).cleanup();
+              }
+            }
+          } catch (error) {
+            console.error(`Error activating ${type} powerup:`, error);
+          }
+        });
+        
+        // Add elements to row container
+        rowContainer.addChild(sprite);
+        rowContainer.addChild(text);
+        
+        // Add row to main container
+        powerupContainer.addChild(rowContainer);
+        
+        // Store references for animation and updates
+        powerupSprites.push(sprite);
+        powerupTexts.push(text);
+      });
+      
+      // Add blinking animation
+      let isFrame1 = true;
+      const blinkInterval = setInterval(() => {
+        if (powerupContainer.destroyed) {
+          clearInterval(blinkInterval);
+          return;
+        }
+        isFrame1 = !isFrame1;
+        const frame = isFrame1 ? '1' : '2';
+        
+        powerupTypes.forEach((type, index) => {
+          if (powerupSprites[index] && !powerupSprites[index].destroyed) {
+            powerupSprites[index].texture = this.powerupVisuals.textures[`${type}-${frame}.png`];
+          }
+        });
+      }, 500);
+      
+      // Function to update powerup counts
+      const updatePowerupCounts = async () => {
+        try {
+          const powerups = await getUserPowerups(this.userId);
+          powerupTypes.forEach((type, index) => {
+            if (powerupTexts[index] && !powerupTexts[index].destroyed) {
+              powerupTexts[index].text = `${powerups[type] || 0}`;
+            }
+          });
+        } catch (error) {
+          console.error('Error updating powerup counts:', error);
+        }
+      };
+      
+      // Initial update and set up subscription
+      await updatePowerupCounts();
+      const unsubscribe = subscribeToUser(this.userId, (data: any) => {
+        const powerups = data?.powerups || {};
+        powerupTypes.forEach((type, index) => {
+          if (powerupTexts[index] && !powerupTexts[index].destroyed) {
+            powerupTexts[index].text = `${powerups[type] || 0}`;
+          }
+        });
+      });
+      
+      // Add cleanup method
+      (powerupContainer as any).updatePowerupCounts = updatePowerupCounts;
+      (powerupContainer as any).cleanup = () => {
+        clearInterval(blinkInterval);
+        unsubscribe();
+        if (powerupContainer.parent) {
+          powerupContainer.parent.removeChild(powerupContainer);
+        }
+        powerupContainer.destroy({ children: true });
+      };
+      
+      // Hide the powerup display after 4 seconds
+      setTimeout(() => {
+        if ((powerupContainer as any).cleanup) {
+          (powerupContainer as any).cleanup();
+        }
+      }, 4000);
+      
+      return powerupContainer;
+    } catch (error) {
+      console.error('Error creating powerup display:', error);
+      return null;
+    }
+  };
 
   private detectMobileAndOptimize() {
     this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
@@ -580,14 +1280,39 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     for (let i = 0; i < powerupsToGenerate; i++) {
       const worldY = startY + Math.random() * zoneHeight;
       const x = 60 + Math.random() * (this.app.renderer.width - 120);
-
-      const powerupType = Math.random() < 0.05 ? 'rocket' : 'powercell';
-      const powerupSprite = new Sprite(this.visuals.textures[powerupType === 'rocket' ? 'rocket-off.png' : 'powercell.png']);
+      // for actual game: 5% chance of rocket, 92% chance of powercell, 1% chance of multiplier, 1% chance of extra life, 1% chance of betting
+      const powerupType = Math.random() < 0.05 ? 'rocket' : Math.random() < 0.97 ? 'powercell' : Math.random() < 0.98 ? 'multiplier' : Math.random() < 0.99 ? 'extra-life' : 'betting';
+      // Use powerupVisuals spritesheet for all powerups except rocket and powercell
+      const isCosmoClimbPowerup = powerupType === 'rocket' || powerupType === 'powercell';
+      const spritesheet = isCosmoClimbPowerup ? this.visuals : this.powerupVisuals;
+      const textureKey = 
+        powerupType === 'rocket' ? 'rocket-off.png' :
+        powerupType === 'powercell' ? 'powercell.png' :
+        `${powerupType}-1.png`; // For multiplier, extra-life, betting
+      
+      const powerupSprite = new Sprite(spritesheet.textures[textureKey]);
       powerupSprite.width = 32;
       powerupSprite.height = 32;
       powerupSprite.anchor.set(0.5);
       powerupSprite.x = x;
       powerupSprite.y = worldY - this.highestY;
+      
+      // Add blinking animation for non-rocket/powercell powerups
+      if (!isCosmoClimbPowerup) {
+        let isFrame1 = true;
+        const blinkInterval = setInterval(() => {
+          if (powerupSprite.destroyed) {
+            clearInterval(blinkInterval);
+            return;
+          }
+          isFrame1 = !isFrame1;
+          const frame = isFrame1 ? '1' : '2';
+          powerupSprite.texture = this.powerupVisuals.textures[`${powerupType}-${frame}.png`];
+        }, 500); // Toggle every 500ms
+        
+        // Store interval ID on the sprite for cleanup
+        (powerupSprite as any).blinkInterval = blinkInterval;
+      }
       
       this.powerups.push({ sprite: powerupSprite, type: powerupType });
       this.powerupLayer.addChild(powerupSprite);
@@ -640,6 +1365,8 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   };
 
   private handleTouch = (e: TouchEvent) => {
+    if (this.isBettingMenuActive) return; // Ignore touch events when betting menu is active
+    
     if (e.touches.length === 0) {
       this.touchDirection = 0;
       return;
@@ -662,6 +1389,8 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   };
 
   private handleKeyDown = (e: KeyboardEvent) => {
+    if (this.isBettingMenuActive) return; // Ignore key events when betting menu is active
+    
     if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
       this.keyboardTilt = -0.4;
       this.usingKeyboard = true;
@@ -830,7 +1559,7 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       this.background.tilePosition.y += dy;
     }
     }
-   
+
   private handleCollisions() {
     if (!this.objectsBeingSucked.has(this.alien)) {
       for (let i = this.monsters.length - 1; i >= 0; i--) {
@@ -859,7 +1588,12 @@ export class CosmoClimbScene extends Container implements ResizableScene {
               
               // Add rotation effect based on velocity
               monster.sprite.rotation = Math.atan2(monster.vy, monster.vx);
-              this.addRubies(1); // Add 1 ruby for hitting monster with rocket
+              if (this.multiplierActive) {
+                this.addRubies(2);
+              } else {
+                this.addRubies(1);
+              }
+
             return;
           }
         }
@@ -867,7 +1601,7 @@ export class CosmoClimbScene extends Container implements ResizableScene {
           // Normal monster collision 
           this.monsterLayer.removeChild(monster.sprite);
           this.monsters.splice(i, 1);
-          this.handleMonsterCollision();
+          this.handleMonsterCollision(monster);
           return;
       }
 
@@ -888,11 +1622,28 @@ export class CosmoClimbScene extends Container implements ResizableScene {
             this.damageTimer = 0;
             this.slowdownTimer = 0;
             this.alien.visible = true; // Ensure alien is visible
-            this.addRubies(2); // Add 2 rubies for rocket
+            if (this.multiplierActive) {
+              this.addRubies(4);
+            } else {
+              this.addRubies(2);
+            }
           } else if (powerup.type === 'powercell') {
             this.powercellActive = true;
             this.powercellTimer = 1000;
-            this.addRubies(1); // Add 1 ruby for powercell
+            if (this.multiplierActive) {
+              this.addRubies(2);
+            } else {
+              this.addRubies(1);
+            }
+          } else if (powerup.type === 'multiplier') {
+            updateUserPowerups(this.userId, 'multiplier', 1);
+            this.multiplierPowerupsEarned++;  
+          } else if (powerup.type === 'extra-life') {
+            updateUserPowerups(this.userId, 'extra-life', 1);
+            this.extraLifePowerupsEarned++;
+          } else if (powerup.type === 'betting') {
+            updateUserPowerups(this.userId, 'betting', 1);
+            this.bettingPowerupsEarned++;
           }
             this.powerupLayer.removeChild(powerup.sprite);
             this.powerups.splice(i, 1); 
@@ -907,7 +1658,8 @@ export class CosmoClimbScene extends Container implements ResizableScene {
       // Check alien collision
       if (!this.objectsBeingSucked.has(this.alien) && 
           Math.abs(this.alien.x - blackHole.x) < 40 &&
-          Math.abs(this.alien.y - blackHole.y) < 40) {
+          Math.abs(this.alien.y - blackHole.y) < 40 && !this.rocketActive) {
+        this.lastCollisionObject = blackHole; // Track the black hole that collided
         this.objectsBeingSucked.set(this.alien, {
           target: blackHole,
           progress: 0,
@@ -946,13 +1698,22 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   }
 }
 
-  private handleMonsterCollision() {
+  private handleMonsterCollision(monster: any) {
     console.log('handleMonsterCollision', this.isVulnerable);
+    this.lastCollisionObject = monster.sprite; // Track the monster that collided
+    
     if (this.isVulnerable) {
       // Second hit while vulnerable = death
-      this.isGameOver = true;
-      this.showGameOver();
-      return;
+      if (this.extraLifeActive) {
+        this.extraLifeActive = false;
+        this.showExtraLifePowerupDisplay();
+        return;
+      }
+      else {
+        this.isGameOver = true;
+        this.showGameOver();
+        return;
+      }
     }
     else {
       // First hit - take damage
@@ -993,6 +1754,12 @@ export class CosmoClimbScene extends Container implements ResizableScene {
   }
 
   private updateSuckAnimations() {
+    if (this.objectsBeingSucked.has(this.alien) && this.extraLifeActive) {
+      this.extraLifeActive = false;
+      this.objectsBeingSucked.delete(this.alien);
+      this.showExtraLifePowerupDisplay();
+      return;
+    }
     // Handle suck-in animations for all objects (run every frame for smooth animation)
     for (const [object, suckData] of this.objectsBeingSucked.entries()) {
       suckData.progress += 0.016;
@@ -1076,8 +1843,15 @@ export class CosmoClimbScene extends Container implements ResizableScene {
         const alienRight = this.alien.x + this.alien.width / 2;
         
         if (alienRight > stormLeft && alienLeft < stormRight) {
-          this.isGameOver = true;
-          this.showGameOver();
+          if (this.extraLifeActive) {
+            this.lastCollisionObject = this.solarStorm;
+            this.extraLifeActive = false;
+            this.showExtraLifePowerupDisplay();
+            return;
+          } else {
+            this.isGameOver = true;
+            this.showGameOver();
+          }
         }
       }
     }
