@@ -1,5 +1,5 @@
 import { Application, Assets, Container, Graphics, scaleModeToGlFilter, Sprite, Text, Ticker } from 'pixi.js';
-import { updateUserPowerups, updateUserRubies } from '../../../firebase';
+import { getUserRubies, updateUserPowerups, updateUserRubies } from '../../../firebase';
 
 export class GemHuntGame extends Container {
 
@@ -8,12 +8,9 @@ export class GemHuntGame extends Container {
   private startBackground!: Graphics;
   private startText!: Text;
   private startButton!: Sprite;
-  private betText!: Text;
-  private betSlider!: Graphics;
-  private betSliderHandle!: Graphics;
   private betValue!: Text;
   private rubySprite!: Sprite;
-  private currentBet: number = 1;
+  private currentBet: number = 10;
 
   // Game Set Up
   private background!: Sprite;
@@ -52,18 +49,8 @@ export class GemHuntGame extends Container {
     private readonly onReturnToMap: () => void
   ) {
     super();
-
-    this.initBackground();
-    this.initGameBoard();
-    
-    this.initTiles();
-    this.initGems();
-    this.initScore();
-
-    this.startOverlay();
-
+    this.init();
     this.resize();
-
 
     window.addEventListener('resize', () => {
       this.app.renderer.resize(window.innerWidth, window.innerHeight);
@@ -71,8 +58,17 @@ export class GemHuntGame extends Container {
     });
   }
 
+  private async init() {
+    this.initBackground();
+    this.initGameBoard();
+    this.initTiles();
+    this.initGems();
+    this.initScore();
+    this.startOverlay();
+  }
+
   // Show start of game overlay
-  private startOverlay() {
+  private async startOverlay() {
     // Create an overlay container
     this.startScreen = new Container();
     this.startScreen.eventMode = 'static';
@@ -93,21 +89,6 @@ export class GemHuntGame extends Container {
     });
     this.startScreen.addChild(this.startText);
 
-    // Bet text
-    this.betText = new Text('Double your rubies or lose them all', {
-      fontFamily: 'Montserrat, sans-serif',
-      fontSize: 20,
-      stroke: 0x000000,
-      fill: 0xffffff,
-      align: 'center',
-      wordWrap: true,
-      wordWrapWidth: this.app.renderer.width * 0.8
-    });
-    this.startScreen.addChild(this.betText);
-
-    // Create slider
-    this.createBetSlider();
-
     // Start button
     this.startButton = Sprite.from('play button.png');
     this.startButton.eventMode = 'static';
@@ -117,37 +98,9 @@ export class GemHuntGame extends Container {
     });
     this.startScreen.addChild(this.startButton);
     this.addChild(this.startScreen);
-    
-    this.positionOverlay();
-  }
-
-  private createBetSlider() {
-    const sliderWidth = 200;
-    const sliderHeight = 8;
-    const handleSize = 20;
-
-    // Slider track
-    this.betSlider = new Graphics();
-    this.betSlider.beginFill(0x666666);
-    this.betSlider.drawRoundedRect(0, 0, sliderWidth, sliderHeight, 4);
-    this.betSlider.endFill();
-    this.betSlider.lineStyle(2, 0xffffff);
-    this.betSlider.drawRoundedRect(0, 0, sliderWidth, sliderHeight, 4);
-    this.startScreen.addChild(this.betSlider);
-
-    // Slider handle
-    this.betSliderHandle = new Graphics();
-    this.betSliderHandle.beginFill(0xffffff);
-    this.betSliderHandle.drawCircle(0, 0, handleSize / 2);
-    this.betSliderHandle.endFill();
-    this.betSliderHandle.lineStyle(2, 0x000000);
-    this.betSliderHandle.drawCircle(0, 0, handleSize / 2);
-    this.betSliderHandle.eventMode = 'static';
-    this.betSliderHandle.cursor = 'pointer';
-    this.startScreen.addChild(this.betSliderHandle);
 
     // Bet value text
-    this.betValue = new Text('1', {
+    this.betValue = new Text(`${this.currentBet}`, {
       fontFamily: 'Montserrat, sans-serif',
       fontSize: 18,
       fill: 0xffffff,
@@ -157,48 +110,9 @@ export class GemHuntGame extends Container {
 
     // Ruby sprite
     this.rubySprite = Sprite.from('ruby.png');
-    this.rubySprite.scale.set(0.1);
     this.startScreen.addChild(this.rubySprite);
-
-    // Set up slider interaction
-    this.setupSliderInteraction();
-  }
-
-  private setupSliderInteraction() {
-    let isDragging = false;
-    let dragStartX = 0;
-    let sliderStartX = 0;
-
-    this.betSliderHandle.on('pointerdown', (event: any) => {
-      isDragging = true;
-      dragStartX = event.global.x;
-      sliderStartX = this.betSliderHandle.x;
-    });
-
-    this.app.stage.on('pointermove', (event: any) => {
-      if (!isDragging) return;
-
-      const deltaX = event.global.x - dragStartX;
-      let newX = sliderStartX + deltaX;
-      
-      // Constrain to slider bounds - use the actual slider position and width
-      const sliderX = this.betSlider.x;
-      const sliderWidth = 200; // sliderWidth
-      const minX = sliderX;
-      const maxX = sliderX + sliderWidth;
-      newX = Math.max(minX, Math.min(maxX, newX));
-      
-      this.betSliderHandle.x = newX;
-      
-      // Update bet value (1-50) based on position within slider bounds
-      const ratio = (newX - minX) / (maxX - minX);
-      this.currentBet = Math.round(1 + ratio * 49); // 1 to 50
-      this.betValue.text = this.currentBet.toString();
-    });
-
-    this.app.stage.on('pointerup', () => {
-      isDragging = false;
-    });
+    
+    this.positionOverlay();
   }
 
   private positionOverlay() {
@@ -216,32 +130,20 @@ export class GemHuntGame extends Container {
     this.startText.x = rw / 2;
     this.startText.y = rh / 3;
 
-    // Position bet text
-    this.betText.anchor.set(0.5);
-    this.betText.style.wordWrapWidth = rw * 0.8;
-    this.betText.x = rw / 2;
-    this.betText.y = rh *3/4- 80;
-
-    // Position slider
-    this.betSlider.x = rw / 2 - 100; // Center the slider
-    this.betSlider.y = rh *3/4 - 20;
-
-    // Position slider handle - start at the beginning of the slider
-    this.betSliderHandle.x = this.betSlider.x;
-    this.betSliderHandle.y = this.betSlider.y + 4; // Center vertically on slider
-
     // Position bet value text
     this.betValue.anchor.set(0.5);
-    this.betValue.x = rw / 2 + 120; // Right of slider
-    this.betValue.y = rh *3/4 - 20;
+    this.betValue.scale.set(2.2);
+    this.betValue.x = rw / 2 + 30; // right of ruby
+    this.betValue.y = rh *2/3 - 20;
 
     // Position ruby sprite
     this.rubySprite.anchor.set(0.5);
-    this.rubySprite.x = rw / 2 + 150; // Right of bet value
-    this.rubySprite.y = rh *3/4 - 20;
+    this.rubySprite.scale.set(0.2);
+    this.rubySprite.x = rw / 2 - 30; // left of bet value
+    this.rubySprite.y = rh *2/3 - 20;
 
     // Position start button
-    const scale = rw * 0.35 / this.startButton.texture.width;
+    const scale = rw * 0.25 / this.startButton.texture.width;
     this.startButton.scale.set(scale);
     this.startButton.anchor.set(0.5);
     this.startButton.x = rw / 2;
