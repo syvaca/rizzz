@@ -1,5 +1,5 @@
 import { Application, Assets, Container, Graphics, scaleModeToGlFilter, Sprite, Text, Ticker } from 'pixi.js';
-import { updateUserRubies } from '../../../firebase';
+import { getUserRubies, updateUserPowerups, updateUserRubies } from '../../../firebase';
 
 export class GemHuntGame extends Container {
 
@@ -8,18 +8,14 @@ export class GemHuntGame extends Container {
   private startBackground!: Graphics;
   private startText!: Text;
   private startButton!: Sprite;
-  private betText!: Text;
-  private betSlider!: Graphics;
-  private betSliderHandle!: Graphics;
   private betValue!: Text;
   private rubySprite!: Sprite;
-  private currentBet: number = 1;
+  private currentBet: number = 10;
 
   // Game Set Up
   private background!: Sprite;
   private title!: Sprite;
   private gameBoard!: Sprite;
-  private powerUps: Sprite[] = [];
   private tiles: Sprite[] = [];
   private numTiles: number = 25;
 
@@ -30,12 +26,13 @@ export class GemHuntGame extends Container {
   private goldIndices: number[] = [];
   private skulls: Sprite[] = [];
   private skullIndices: number[] = [];
+  private powerUp!: Sprite;
+  private powerUpIndex!: number;
+  private powerUpType!: string;
 
   // User
   private userTiles: number[] = [];
-  private score: number = 0;
   private gameWon: boolean = false;
-  private activePowerUp: string | null = null;
 
   // Score
   private goldIcon!: Sprite;
@@ -52,18 +49,8 @@ export class GemHuntGame extends Container {
     private readonly onReturnToMap: () => void
   ) {
     super();
-
-    this.initBackground();
-    this.initGameBoard();
-    this.initPowerUps();
-    this.initTiles();
-    this.initGems();
-    this.initScore();
-
-    this.startOverlay();
-
+    this.init();
     this.resize();
-
 
     window.addEventListener('resize', () => {
       this.app.renderer.resize(window.innerWidth, window.innerHeight);
@@ -71,8 +58,17 @@ export class GemHuntGame extends Container {
     });
   }
 
+  private async init() {
+    this.initBackground();
+    this.initGameBoard();
+    this.initTiles();
+    this.initGems();
+    this.initScore();
+    this.startOverlay();
+  }
+
   // Show start of game overlay
-  private startOverlay() {
+  private async startOverlay() {
     // Create an overlay container
     this.startScreen = new Container();
     this.startScreen.eventMode = 'static';
@@ -93,61 +89,30 @@ export class GemHuntGame extends Container {
     });
     this.startScreen.addChild(this.startText);
 
-    // Bet text
-    this.betText = new Text('Double your rubies or lose them all', {
-      fontFamily: 'Montserrat, sans-serif',
-      fontSize: 20,
-      stroke: 0x000000,
-      fill: 0xffffff,
-      align: 'center',
-      wordWrap: true,
-      wordWrapWidth: this.app.renderer.width * 0.8
-    });
-    this.startScreen.addChild(this.betText);
-
-    // Create slider
-    this.createBetSlider();
-
     // Start button
     this.startButton = Sprite.from('play button.png');
     this.startButton.eventMode = 'static';
     this.startButton.cursor = 'pointer';
-    this.startButton.on('pointerdown', () => {
+    this.startButton.on('pointerdown', async () => {
+      // if not enough rubies, show error message and return to map
+      const userRubies = await getUserRubies(this.userId);
+      if (userRubies < this.currentBet) {
+        this.startText.text = 'Not enough rubies';
+        this.startText.style.fill = 0xff0000; // Change text color to red
+        setTimeout(() => {
+          this.onReturnToMap();
+        }, 2000);
+        return;
+      }
+      // Otherwise, start the game
       this.removeChild(this.startScreen);
     });
+
     this.startScreen.addChild(this.startButton);
     this.addChild(this.startScreen);
-    
-    this.positionOverlay();
-  }
-
-  private createBetSlider() {
-    const sliderWidth = 200;
-    const sliderHeight = 8;
-    const handleSize = 20;
-
-    // Slider track
-    this.betSlider = new Graphics();
-    this.betSlider.beginFill(0x666666);
-    this.betSlider.drawRoundedRect(0, 0, sliderWidth, sliderHeight, 4);
-    this.betSlider.endFill();
-    this.betSlider.lineStyle(2, 0xffffff);
-    this.betSlider.drawRoundedRect(0, 0, sliderWidth, sliderHeight, 4);
-    this.startScreen.addChild(this.betSlider);
-
-    // Slider handle
-    this.betSliderHandle = new Graphics();
-    this.betSliderHandle.beginFill(0xffffff);
-    this.betSliderHandle.drawCircle(0, 0, handleSize / 2);
-    this.betSliderHandle.endFill();
-    this.betSliderHandle.lineStyle(2, 0x000000);
-    this.betSliderHandle.drawCircle(0, 0, handleSize / 2);
-    this.betSliderHandle.eventMode = 'static';
-    this.betSliderHandle.cursor = 'pointer';
-    this.startScreen.addChild(this.betSliderHandle);
 
     // Bet value text
-    this.betValue = new Text('1', {
+    this.betValue = new Text(`${this.currentBet}`, {
       fontFamily: 'Montserrat, sans-serif',
       fontSize: 18,
       fill: 0xffffff,
@@ -157,48 +122,9 @@ export class GemHuntGame extends Container {
 
     // Ruby sprite
     this.rubySprite = Sprite.from('ruby.png');
-    this.rubySprite.scale.set(0.1);
     this.startScreen.addChild(this.rubySprite);
-
-    // Set up slider interaction
-    this.setupSliderInteraction();
-  }
-
-  private setupSliderInteraction() {
-    let isDragging = false;
-    let dragStartX = 0;
-    let sliderStartX = 0;
-
-    this.betSliderHandle.on('pointerdown', (event: any) => {
-      isDragging = true;
-      dragStartX = event.global.x;
-      sliderStartX = this.betSliderHandle.x;
-    });
-
-    this.app.stage.on('pointermove', (event: any) => {
-      if (!isDragging) return;
-
-      const deltaX = event.global.x - dragStartX;
-      let newX = sliderStartX + deltaX;
-      
-      // Constrain to slider bounds - use the actual slider position and width
-      const sliderX = this.betSlider.x;
-      const sliderWidth = 200; // sliderWidth
-      const minX = sliderX;
-      const maxX = sliderX + sliderWidth;
-      newX = Math.max(minX, Math.min(maxX, newX));
-      
-      this.betSliderHandle.x = newX;
-      
-      // Update bet value (1-50) based on position within slider bounds
-      const ratio = (newX - minX) / (maxX - minX);
-      this.currentBet = Math.round(1 + ratio * 49); // 1 to 50
-      this.betValue.text = this.currentBet.toString();
-    });
-
-    this.app.stage.on('pointerup', () => {
-      isDragging = false;
-    });
+    
+    this.positionOverlay();
   }
 
   private positionOverlay() {
@@ -216,32 +142,20 @@ export class GemHuntGame extends Container {
     this.startText.x = rw / 2;
     this.startText.y = rh / 3;
 
-    // Position bet text
-    this.betText.anchor.set(0.5);
-    this.betText.style.wordWrapWidth = rw * 0.8;
-    this.betText.x = rw / 2;
-    this.betText.y = rh *3/4- 80;
-
-    // Position slider
-    this.betSlider.x = rw / 2 - 100; // Center the slider
-    this.betSlider.y = rh *3/4 - 20;
-
-    // Position slider handle - start at the beginning of the slider
-    this.betSliderHandle.x = this.betSlider.x;
-    this.betSliderHandle.y = this.betSlider.y + 4; // Center vertically on slider
-
     // Position bet value text
     this.betValue.anchor.set(0.5);
-    this.betValue.x = rw / 2 + 120; // Right of slider
-    this.betValue.y = rh *3/4 - 20;
+    this.betValue.scale.set(2.2);
+    this.betValue.x = rw / 2 + 30; // right of ruby
+    this.betValue.y = rh *2/3 - 20;
 
     // Position ruby sprite
     this.rubySprite.anchor.set(0.5);
-    this.rubySprite.x = rw / 2 + 150; // Right of bet value
-    this.rubySprite.y = rh *3/4 - 20;
+    this.rubySprite.scale.set(0.2);
+    this.rubySprite.x = rw / 2 - 30; // left of bet value
+    this.rubySprite.y = rh *2/3 - 20;
 
     // Position start button
-    const scale = rw * 0.35 / this.startButton.texture.width;
+    const scale = rw * 0.25 / this.startButton.texture.width;
     this.startButton.scale.set(scale);
     this.startButton.anchor.set(0.5);
     this.startButton.x = rw / 2;
@@ -308,31 +222,6 @@ export class GemHuntGame extends Container {
     this.addChild(this.gameBoard);
   }
 
-  // Initialize the power-up sprites
-  private initPowerUps() {
-    this.powerUps = [];
-    const powerUpSprites = [
-      'powerup bomb.png',
-      'powerup potion.png',
-      'powerup shield.png'
-    ];
-    
-    for (let i = 0; i < 3; i++) {
-      const powerUp = Sprite.from(powerUpSprites[i]);
-      this.addChild(powerUp);
-      this.powerUps.push(powerUp);
-      
-      // Make bomb interactive (first power-up)
-      if (i === 0) {
-        powerUp.eventMode = 'static';
-        powerUp.cursor = 'pointer';
-        powerUp.on('pointerdown', () => {
-          this.activateBomb();
-      });
-      }
-    }
-  }
-
   private positionGameBoard() {
     const rw = this.app.renderer.width;
     const rh = this.app.renderer.height;
@@ -345,25 +234,6 @@ export class GemHuntGame extends Container {
     this.gameBoard.y = rh / 2;
   }
 
-  private positionPowerUps() {
-    const rw = this.app.renderer.width;
-    const rh = this.app.renderer.height;
-    
-    // Position the power-ups under the gameboard
-    const powerUpSpacing = rw / 6; // Divide screen into 6 sections, power-ups in positions 2, 3, 4
-    const powerUpY = rh / 2 + this.gameBoard.height / 2 + 50; // 50px below the gameboard
-    
-    this.powerUps.forEach((powerUp, index) => {
-      powerUp.anchor.set(0.5);
-      powerUp.x = powerUpSpacing * (index + 2); // Positions at 2/6, 3/6, 4/6 of screen width (closer together)
-      powerUp.y = powerUpY;
-      
-      // Scale the power-up appropriately
-      const scale = Math.min(rw, rh) * 0.12 / powerUp.texture.width;
-      powerUp.scale.set(scale);
-    });
-  }
-  
   // Initialize the tiles into an array
   private initTiles() {
     this.tiles = [];
@@ -469,11 +339,28 @@ export class GemHuntGame extends Container {
       this.addChildAt(skull, this.getChildIndex(this.tiles[index]));  // COMMENT OUT TO SEE SKULL ON TOP OF TILES
       this.skulls.push(skull);
     }
+
+    // 1/5 proabaility that a power up will be placed
+    if (Math.random() < 0.2) {
+      let index;
+      do {
+        index = Math.floor(Math.random() * this.numTiles);
+      } while (this.goldIndices.includes(index) || this.diamondIndex === index || this.skullIndices.includes(index));
+      this.powerUpIndex = index;
+      
+      // choose either betting-2.png, extra-life-2.png, or multiplier-2.png
+      this.powerUpType = Math.random() < 0.33 ? 'betting' : (Math.random() < 0.5 ? 'extra-life' : 'multiplier');
+      this.powerUp = Sprite.from(`${this.powerUpType}-2.png`);
+      this.powerUp.anchor.set(0.5);
+      this.addChild(this.powerUp);
+      this.addChildAt(this.powerUp, this.getChildIndex(this.tiles[this.powerUpIndex]));
+    }
+
     this.positionGems();
   }
 
   private positionGems() {
-    // position the diamond, golds, and skulls in the center of their respective tiles
+    // position the diamond, golds, skulls, and power-up in the center of their respective tiles
     const dT = this.tiles[this.diamondIndex];
     this.diamond.x = dT.x;
     this.diamond.y = dT.y;
@@ -492,6 +379,13 @@ export class GemHuntGame extends Container {
       s.y = t.y;
       s.scale.set(t.scale.x);
     });
+
+    if (this.powerUp) {
+      const t = this.tiles[this.powerUpIndex];
+      this.powerUp.x = t.x;
+      this.powerUp.y = t.y;
+      this.powerUp.scale.set(t.scale.x + .12);
+    }
   }
 
   private initScore() {
@@ -589,7 +483,7 @@ export class GemHuntGame extends Container {
     this.deathScore.y = this.deathIcon.y + (this.deathIcon.height - this.deathScore.height) / 2;
   }
 
-  private updateScore() {
+  private updateVisualScore() {
     // update the gold score text
     const goldCount = this.userTiles.filter(index => this.goldIndices.includes(index)).length;
     this.goldScore.text = `${goldCount}/${this.goldIndices.length}`;
@@ -628,90 +522,16 @@ export class GemHuntGame extends Container {
     this.app.ticker.add(arc, this);
   }
 
-  private activateBomb() {
-    this.activePowerUp = 'bomb';
-    console.log('Bomb power-up activated! Click a tile to use it.');
-  }
 
   private chosenTile(tile: Sprite) {
     const tileIndex = this.tiles.indexOf(tile);
     
-    if (this.activePowerUp === 'bomb') {
-      // Use bomb power-up
-      this.useBombPowerUp(tileIndex);
-      this.activePowerUp = null; // Reset power-up
-      return;
-    }
-
-    // Normal tile selection
-    this.selectTile(tile, tileIndex);
-  }
-
-  private useBombPowerUp(centerTileIndex: number) {
-    const cols = Math.ceil(Math.sqrt(this.numTiles));
-    const rows = Math.ceil(this.numTiles / cols);
-    
-    // Get adjacent tile indices (up, down, left, right)
-    const adjacentIndices = [];
-    const row = Math.floor(centerTileIndex / cols);
-    const col = centerTileIndex % cols;
-    
-    // Check all 4 directions
-    const directions = [
-      [-1, 0], // up
-      [1, 0],  // down
-      [0, -1], // left
-      [0, 1]   // right
-    ];
-    
-    for (const [dr, dc] of directions) {
-      const newRow = row + dr;
-      const newCol = col + dc;
-      
-      if (newRow >= 0 && newRow < rows && newCol >= 0 && newCol < cols) {
-        const index = newRow * cols + newCol;
-        if (index < this.numTiles) {
-          adjacentIndices.push(index);
-        }
-      }
-    }
-    
-    // Add center tile and all adjacent tiles
-    const tilesToPop = [centerTileIndex, ...adjacentIndices];
-    
-    tilesToPop.forEach(index => {
-      if (!this.userTiles.includes(index)) {
-        this.userTiles.push(index);
-        
-        const tile = this.tiles[index];
-        tile.interactive = false;
-        (tile as any).buttonMode = false;
-        this.tilePopAnimation(tile);
-        
-        // Only collect gems, not skulls
-        if (index === this.diamondIndex) {
-          console.log('Bomb found the diamond!');
-          this.score += 500;
-        }
-        if (this.goldIndices.includes(index)) {
-          console.log('Bomb found a gold!');
-          this.score += 300;
-        }
-        // Skulls are not collected by bomb
-      }
-    });
-    
-    this.updateScore();
-    this.checkGameEnd();
-  }
-
-  private selectTile(tile: Sprite, tileIndex: number) {
     // add the tile to the user's tiles
     if (!this.userTiles.includes(tileIndex)) {
       this.userTiles.push(tileIndex);
     }
 
-    this.updateScore();
+    this.updateVisualScore();
 
     // disable interaction for the tile
     tile.interactive = false;
@@ -719,22 +539,18 @@ export class GemHuntGame extends Container {
 
     this.tilePopAnimation(tile);
 
-    // check if the tile is the diamond, gold, or skull
-    if (tileIndex === this.diamondIndex) {
-      console.log('You found the diamond!');
-      this.score += 500;
+    // update user powerups
+    if(this.powerUpIndex === tileIndex) {
+      console.log('You found a power-up!');
+      if (this.powerUpType === 'multiplier') {
+        updateUserPowerups(this.userId, 'multiplier', 1); 
+      } else if (this.powerUpType === 'extra-life') {
+        updateUserPowerups(this.userId, 'extra-life', 1);
+      } else if (this.powerUpType === 'betting') {
+        updateUserPowerups(this.userId, 'betting', 1);
+      }
     }
-    if (this.goldIndices.includes(tileIndex)) {
-      console.log('You found a gold!');
-      this.score += 300;
-    }
-    if (this.skullIndices.includes(tileIndex)) {
-      console.log('You found a skull!');
-      this.score -= 400;
-    }
-
-    console.log(`Current score: ${this.score}`);
-
+    
     this.checkGameEnd();
   }
 
@@ -811,7 +627,6 @@ export class GemHuntGame extends Container {
     this.positionOverlay();
     this.positionTitle();
     this.positionGameBoard();
-    this.positionPowerUps();
     this.positionTiles();
     this.positionGems();
     this.positionScore();
