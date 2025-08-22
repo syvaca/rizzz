@@ -1,5 +1,6 @@
 import { Application, Assets, Container, Graphics, scaleModeToGlFilter, Sprite, Text, Ticker } from 'pixi.js';
 import { getUserRubies, updateUserPowerups, updateUserRubies } from '../../../firebase';
+import { PowerupMenu, PowerupType } from '../../../components/PowerupMenu';
 
 export class GemHuntGame extends Container {
 
@@ -11,6 +12,10 @@ export class GemHuntGame extends Container {
   private betValue!: Text;
   private rubySprite!: Sprite;
   private currentBet: number = 10;
+  private powerupMenu?: PowerupMenu;
+  private multiplierActive: boolean = false;
+  private bettingActive: boolean = false;
+  private bettingAmount: number = 0;
 
   // Game Set Up
   private background!: Sprite;
@@ -106,6 +111,30 @@ export class GemHuntGame extends Container {
       }
       // Otherwise, start the game
       this.removeChild(this.startScreen);
+
+      // Reset powerup state for new game
+      this.multiplierActive = false;
+      this.bettingActive = false;
+      this.bettingAmount = 0;
+      
+      // Show reusable powerup menu and keep it visible until the first tile is clicked
+      this.powerupMenu = new PowerupMenu(this.app, this.userId, {
+        onSelect: (type: PowerupType) => {
+          if (type === 'multiplier') {
+            this.multiplierActive = true;
+          }
+        },
+        onBetPlaced: (amount: number) => {
+          this.bettingActive = true;
+          this.bettingAmount = amount;
+        }
+      });
+      
+      // Reset powerup menu state for new game
+      this.powerupMenu.resetForNewGame();
+      
+      this.sortableChildren = true as true;
+      this.addChild(this.powerupMenu);
     });
 
     this.startScreen.addChild(this.startButton);
@@ -524,6 +553,12 @@ export class GemHuntGame extends Container {
 
 
   private chosenTile(tile: Sprite) {
+    // On first interaction with a tile, remove the powerup menu if present
+    if (this.powerupMenu) {
+      this.powerupMenu.cleanup();
+      this.powerupMenu = undefined;
+    }
+
     const tileIndex = this.tiles.indexOf(tile);
     
     // add the tile to the user's tiles
@@ -579,6 +614,12 @@ export class GemHuntGame extends Container {
   }
 
   private async endOverlay() {
+    // Calculate total winnings before updating rubies
+    const baseWin = this.currentBet;
+    const extraWin = (this.gameWon && this.multiplierActive) ? baseWin : 0; // double winnings if multiplier
+    const betWin = (this.gameWon && this.bettingActive && this.bettingAmount > 0) ? (5 * this.bettingAmount) : 0;
+    const totalWin = this.gameWon ? (baseWin + extraWin + betWin) : 0;
+
     // update user rubies
     await this.updateUserRubies(); 
 
@@ -593,7 +634,7 @@ export class GemHuntGame extends Container {
     // Result text
     this.startText = new Text(
       this.gameWon ? 
-        'You win ' + `${this.currentBet}` + ` rubies!`: 'You Lose ' + `${this.currentBet}` + ` rubies!`, {
+        `You win ${totalWin} rubies!` : `You Lose ${this.currentBet} rubies!`, {
       fontFamily: 'Montserrat, sans-serif',
       fontSize: 28,
       stroke: 0x000000,
@@ -614,11 +655,23 @@ export class GemHuntGame extends Container {
   }
 
   public async updateUserRubies() {
-    if (this.gameWon) {
-      await updateUserRubies(this.userId, this.currentBet);
-    } else {
-      await updateUserRubies(this.userId, -this.currentBet);
+    // Base bet outcome
+    let delta = this.gameWon ? this.currentBet : -this.currentBet;
+
+    // Betting powerup: bet amount already deducted upfront in the menu
+    // If win: credit +6× bet (net +5× after upfront deduction). If lose: no additional delta.
+    if (this.bettingActive && this.bettingAmount > 0) {
+      if (this.gameWon) {
+        delta += 6 * this.bettingAmount;
+      }
     }
+
+    // Multiplier doubles winnings only (no effect on losses)
+    if (this.gameWon && this.multiplierActive && delta > 0) {
+      delta *= 2;
+    }
+
+    await updateUserRubies(this.userId, delta);
   }
 
   public resize() {
@@ -630,5 +683,6 @@ export class GemHuntGame extends Container {
     this.positionTiles();
     this.positionGems();
     this.positionScore();
+    if (this.powerupMenu) this.powerupMenu.resize();
   }
 }
