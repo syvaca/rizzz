@@ -8,6 +8,7 @@ interface PowerupMenuOptions {
   y?: number;
   onSelect?: (type: PowerupType) => void;
   onBetPlaced?: (amount: number) => void;
+  customBettingText?: string; // Custom text for betting overlay
 }
 
 /**
@@ -44,6 +45,7 @@ export class PowerupMenu extends Container {
   private betHandle?: Graphics;
   private betValueText?: Text;
   private anyPowerupUsed: boolean = false; // Track if ANY powerup has been used
+  private customBettingText?: string; // Store custom betting text
 
   constructor(app: Application, userId: string, options: PowerupMenuOptions = {}) {
     super();
@@ -51,6 +53,7 @@ export class PowerupMenu extends Container {
     this.userId = userId;
     this.onSelect = options.onSelect;
     this.onBetPlaced = options.onBetPlaced;
+    this.customBettingText = options.customBettingText;
 
     // Defaults
     this.x = options.x ?? 20;
@@ -364,7 +367,7 @@ export class PowerupMenu extends Container {
     panelBg.endFill();
     panel.addChild(panelBg);
 
-    const title = new Text('All or nothing! Win 5× your bet!', {
+    const title = new Text(this.customBettingText || 'All or nothing! Win 5× your bet!', {
       fontFamily: 'Chewy',
       fontSize: 24,
       fill: 0xffffff,

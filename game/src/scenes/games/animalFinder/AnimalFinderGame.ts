@@ -2,6 +2,7 @@ import { Application, Container, Assets, Text, TextStyle, Graphics, Sprite, Text
 import { Animal, AnimalType } from './Animal';
 import { ResizableScene } from '../../SceneManager';
 import { getUserRubies, updateUserRubies } from '../../../firebase';
+import { PowerupMenu, PowerupType } from '../../../components/PowerupMenu';
 
 export class AnimalFinderGame extends Container implements ResizableScene {
   // overlay
@@ -9,6 +10,13 @@ export class AnimalFinderGame extends Container implements ResizableScene {
   private overlayTimeout!: ReturnType<typeof setTimeout>;
   private round:number = 1;
   private speedMultiplier: number = 1; // Add speed multiplier
+  
+  // Powerup system
+  private powerupMenu?: PowerupMenu;
+  private multiplierActive: boolean = false;
+  private bettingActive: boolean = false;
+  private bettingAmount: number = 0;
+  private hasExtraLife: boolean = false;
 
   // wanted animal
   private wantedAnimals: AnimalType[] = [
@@ -56,6 +64,14 @@ export class AnimalFinderGame extends Container implements ResizableScene {
     await this.showWantedOverlay(textures[this.wantedAnimalType], () => {
       this.createAnimals(textures);
       this.app.ticker.add(this.gameLoop);
+      
+      // Show powerup menu only in first round, auto-hide after 3 seconds
+      if (this.round === 1) {
+        this.showPowerupMenu();
+        setTimeout(() => {
+          this.hidePowerupMenu();
+        }, 3000);
+      }
     });
   }
 
@@ -64,6 +80,37 @@ export class AnimalFinderGame extends Container implements ResizableScene {
     background.width = window.innerWidth;
     background.height = window.innerHeight;
     this.addChild(background);
+  }
+
+  private showPowerupMenu() {
+    // Create powerup menu with custom betting text for Animal Finder
+    this.powerupMenu = new PowerupMenu(this.app, this.userId, {
+      onSelect: (type: PowerupType) => {
+        if (type === 'multiplier') {
+          this.multiplierActive = true;
+        } else if (type === 'extra-life') {
+          this.hasExtraLife = true;
+        }
+      },
+      onBetPlaced: (amount: number) => {
+        this.bettingActive = true;
+        this.bettingAmount = amount;
+      },
+      customBettingText: 'All or nothing! Hit this round for 5 times rubies'
+    });
+    
+    // Position at bottom-left
+    this.powerupMenu.x = 20;
+    this.powerupMenu.y = this.app.screen.height - 250;
+    
+    this.addChild(this.powerupMenu);
+  }
+
+  private hidePowerupMenu() {
+    if (this.powerupMenu) {
+      this.powerupMenu.cleanup();
+      this.powerupMenu = undefined;
+    }
   }
 
   private async loadAnimalTextures() {
@@ -282,8 +329,36 @@ export class AnimalFinderGame extends Container implements ResizableScene {
 
     // Check if time ran out
     if (this.timeRemaining <= 0) {
-      await this.endGame(false);
-      return;
+      // Check if extra-life powerup is available
+      if (this.hasExtraLife) {
+        this.hasExtraLife = false; // Use it up
+        
+        // Show feedback that extra life was used
+        const feedbackText = new Text('Extra Life Used!', {
+          fontFamily: 'Hanalei Fill',
+          fontSize: 24,
+          fill: 0xFFD700,
+          stroke: 0x000000
+        });
+        feedbackText.anchor.set(0.5);
+        feedbackText.x = window.innerWidth / 2;
+        feedbackText.y = window.innerHeight / 2 + 100;
+        feedbackText.zIndex = 9999;
+        this.addChild(feedbackText);
+        
+        // Give extra time (10 more seconds)
+        this.timeRemaining = 10;
+        this.lastTime = Date.now(); // Reset timer
+        
+        setTimeout(() => {
+          this.removeChild(feedbackText);
+          feedbackText.destroy();
+        }, 2000);
+      } else {
+        // No extra life available, end the game
+        await this.endGame(false);
+        return;
+      }
     }
 
     // Update all animals
@@ -300,7 +375,7 @@ export class AnimalFinderGame extends Container implements ResizableScene {
       }, 500);
       await this.endGame(true);
     } else {
-      // Wrong animal clicked - maybe add some feedback
+      // Wrong animal clicked
       animal.tint = 0xCC523F; // Flash red
       setTimeout(() => {
         animal.tint = 0xFFFFFF; // Reset to normal
@@ -320,16 +395,55 @@ export class AnimalFinderGame extends Container implements ResizableScene {
     this.app.ticker.remove(this.gameLoop);
 
     if (won) {
-      // Add 5 points for winning the round
-      this.currentScore += 5;
+      // Calculate base score (5 points per round)
+      let baseScore = 5;
+      
+      // Apply multiplier powerup if active
+      if (this.multiplierActive) {
+        baseScore *= 2;
+      }
+      else if(this.bettingActive && this.bettingAmount > 0) {
+        baseScore *= 5;
+      }
+      
+      // Update score
+      this.currentScore += baseScore;
       this.scoreText.text = `${this.currentScore}`;
       this.round++;
+      
       // Add restart functionality for win
       setTimeout(() => {
         this.restartGame();
       }, 3000);
     } else {
-      // Game over - add score to user's rubies
+      // Game over - check betting powerup
+      if (this.bettingActive && this.bettingAmount > 0) {
+        if (this.round <= this.bettingAmount) {
+          // User didn't reach their bet round - they lose everything!
+          this.currentScore = 0;
+          this.scoreText.text = '0';
+          
+          // Show betting loss message
+          const bettingLossText = new Text('Bet lost! Lost all rubies!', {
+            fontFamily: 'Hanalei Fill',
+            fontSize: 24,
+            fill: 0xFF4444,
+            stroke: 0x000000
+          });
+          bettingLossText.anchor.set(0.5);
+          bettingLossText.x = window.innerWidth / 2;
+          bettingLossText.y = window.innerHeight / 2 + 100;
+          bettingLossText.zIndex = 9999;
+          this.addChild(bettingLossText);
+          
+          setTimeout(() => {
+            this.removeChild(bettingLossText);
+            bettingLossText.destroy();
+          }, 3000);
+        }
+      }
+      
+      // Add score to user's rubies (could be 0 if betting failed)
       if (this.currentScore > 0) {
         try {
           await updateUserRubies(this.userId, this.currentScore);
@@ -397,6 +511,11 @@ export class AnimalFinderGame extends Container implements ResizableScene {
     if (this.resultText && this.resultText.visible) {
       this.resultText.x = window.innerWidth / 2 - this.resultText.width / 2;
       this.resultText.y = window.innerHeight / 2 - this.resultText.height / 2;
+    }
+    
+    // Update powerup menu position
+    if (this.powerupMenu) {
+      this.powerupMenu.resize();
     }
   }
 }
