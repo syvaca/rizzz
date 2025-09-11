@@ -6,6 +6,7 @@ import { BoulderBashScene } from '../scenes/games/boulderBash/BoulderBash';
 import { GemHuntGame } from '../scenes/games/gemHunt/gemHunt';
 import { QuickTapWords } from '../scenes/games/quickTapWords/QuickTapWords';
 import { QuickTapNumbers } from '../scenes/games/quickTapNumbers/QuickTapNumbers';
+import { SequenceRecall } from '../scenes/games/sequenceRecall/SequenceRecall';
 
 export interface GameData {
   id: string;
@@ -80,6 +81,14 @@ export const GAMES: GameData[] = [
     photo: '/assets/game-thumbnails/gemHuntIcon.png',
     mapPosition: { x: 670, y: 460 }, // Position in middle of map
     sceneClass: GemHuntGame
+  },
+  {
+    id: 'sequence-recall',
+    name: 'Sequence Recall',
+    description: 'Memorize a sequence, survive a distraction, and rebuild it across 3 rounds (8/10/12).',
+    photo: '/assets/game-thumbnails/sequenceRecallIcon.png',
+    mapPosition: { x: 360, y: 200 },
+    sceneClass: SequenceRecall
   },
 ];
 
