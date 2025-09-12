@@ -85,9 +85,9 @@ export const GAMES: GameData[] = [
   {
     id: 'sequence-recall',
     name: 'Sequence Recall',
-    description: 'Memorize a sequence, survive a distraction, and rebuild it across 3 rounds (8/10/12).',
+    description: 'Memorize a sequence, survive a distraction, and rebuild it across 3 rounds (4/6/8).',
     photo: '/assets/game-thumbnails/sequenceRecallIcon.png',
-    mapPosition: { x: 360, y: 200 },
+    mapPosition: { x: 360, y: 400 },
     sceneClass: SequenceRecall
   },
 ];
