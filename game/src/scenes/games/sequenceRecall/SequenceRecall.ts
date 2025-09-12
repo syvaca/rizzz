@@ -66,8 +66,8 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
   private state: GameState = 'START';
   private mode: Mode = 'cards';
 
-  // Rounds: lengths 8, 10, 12
-  private readonly roundLengths = [8, 10, 12];
+  // Rounds: lengths 4, 6, 8
+  private readonly roundLengths = [4, 6, 8];
   private roundIndex = 0;
   private bankRubies = 0; // current rubies from DB
   private earnedThisGame = 0; // amount earned during this session
@@ -103,6 +103,7 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
   private distractionTimer = 0;
   private distractionTimerText!: PIXI.Text;
   private readonly DISTRACTION_DURATION = 5000; // ms
+  private readonly DISTRACTION_RUBY_COUNT = 6;
   private distractionRubies: Array<{ sprite: PIXI.Sprite; vx: number; vy: number }> = [];
   private shatterParticles: Array<{ g: PIXI.Graphics; vx: number; vy: number; life: number; maxLife: number }> = [];
   private readonly RUBY_TAP_VALUE = 1;
@@ -172,7 +173,8 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
   private async setupScoreDisplay() {
     const rubyTexture = await PIXI.Assets.load('/assets/sprites/ruby.png');
     this.rubySprite = new PIXI.Sprite(rubyTexture);
-    this.rubySprite.width = 32; this.rubySprite.height = 32;
+    const rubyUiSize = this.isMobile ? 40 : 32;
+    this.rubySprite.width = rubyUiSize; this.rubySprite.height = rubyUiSize;
 
     const baseFontSize = this.isMobile ? 28 : 28;
     const scaleFactor = Math.min(this.app.screen.width / 400, this.app.screen.height / 600);
@@ -187,6 +189,7 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
     try {
       this.bankRubies = await getUserRubies(this.userId);
       this.scoreText.text = String(this.bankRubies);
+      this.updateScorePosition();
     } catch (e) {
       console.error('Failed to load user rubies', e);
     }
@@ -194,13 +197,17 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
 
   private updateScorePosition() {
     if (!this.rubySprite || !this.scoreText) return;
-    const margin = this.isMobile ? 15 : 30;
-    const totalWidth = 32 + 10 + this.scoreText.width;
-    const padding = 20;
-    this.rubySprite.x = this.app.screen.width - totalWidth - padding;
-    this.rubySprite.y = margin;
-    this.scoreText.x = this.rubySprite.x + 42;
-    this.scoreText.y = this.rubySprite.y - 5;
+    const marginTop = this.isMobile ? 15 : 30;
+    const paddingRight = 20;
+    const gap = 10;
+    const totalWidth = this.rubySprite.width + gap + this.scoreText.width;
+    // Position the pair so it never exceeds the right edge
+    const startX = Math.max(0, this.app.screen.width - totalWidth - paddingRight);
+    this.rubySprite.x = startX;
+    this.rubySprite.y = marginTop;
+    this.scoreText.x = this.rubySprite.x + this.rubySprite.width + gap;
+    // Vertically center text relative to icon
+    this.scoreText.y = this.rubySprite.y + (this.rubySprite.height - this.scoreText.height) / 2;
   }
 
   private gameLoop = (ticker: PIXI.Ticker) => {
@@ -225,8 +232,8 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
     this.startContainer.addChild(title);
 
     const instructions = new PIXI.Text(
-      'Memorize the sequence. Get distracted. Rebuild it!\n3 rounds: 8, 10, 12 items. Points for accuracy.',
-      { fontSize: this.isMobile ? 18 : 22, fill: 0xcccccc, fontFamily: 'Arial', align: 'center' }
+      'Memorize the sequence. Get distracted. Rebuild it!\n3 rounds: 4, 6, 8 items. Points for accuracy.',
+      { fontSize: this.isMobile ? 18 : 22, fill: 0xcccccc, fontFamily: 'Arial', align: 'center', wordWrap: true, wordWrapWidth: this.app.screen.width - (this.isMobile ? 40 : 80), breakWords: true }
     );
     instructions.anchor.set(0.5);
     instructions.x = this.app.screen.width / 2;
@@ -241,11 +248,12 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
       b.cursor = 'pointer';
       this.startContainer.addChild(b);
     });
-    btnCards.x = this.app.screen.width / 2 - (this.isMobile ? 90 : 120);
-    btnCards.y = this.app.screen.height * 2 / 3;
-    btnNumbers.x = this.app.screen.width / 2 + (this.isMobile ? 90 : 120);
-    btnNumbers.y = btnCards.y;
-
+    const buttonsY = instructions.y + instructions.height / 2 + (this.isMobile ? 28 : 36);
+    // Always stack vertically (mobile-first)
+    btnCards.x = this.app.screen.width / 2;
+    btnCards.y = buttonsY;
+    btnNumbers.x = this.app.screen.width / 2;
+    btnNumbers.y = buttonsY + 52;
     btnCards.on('pointerdown', (e: any) => { e.stopPropagation(); this.mode = 'cards'; this.beginGame(); });
     btnNumbers.on('pointerdown', (e: any) => { e.stopPropagation(); this.mode = 'numbers'; this.beginGame(); });
   }
@@ -273,8 +281,13 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
       for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
       return deck.slice(0, length);
     } else {
+      // Single digits only (0-9), unique per sequence
+      const pool = [0,1,2,3,4,5,6,7,8,9];
       const nums: number[] = [];
-      while (nums.length < length) { const n = 1 + Math.floor(Math.random() * 99); if (!nums.includes(n)) nums.push(n); }
+      while (nums.length < length) {
+        const n = pool[Math.floor(Math.random() * pool.length)];
+        if (!nums.includes(n)) nums.push(n);
+      }
       return nums.map((n) => ({ kind: 'number', value: n }));
     }
   }
@@ -286,15 +299,16 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
     this.seqContainer.removeChildren();
 
     const title = new PIXI.Text(`Round ${this.roundIndex + 1}: Memorize this ${this.currentSequence.length}-item sequence`, {
-      fontSize: this.isMobile ? 20 : 26, fill: 0xffffff, fontFamily: 'SuperWater', align: 'center'
+      fontSize: this.isMobile ? 24 : 26, fill: 0xffffff, fontFamily: 'SuperWater', align: 'center', wordWrap: true, wordWrapWidth: this.app.screen.width - 40, breakWords: true
     });
     title.anchor.set(0.5);
     title.x = this.app.screen.width / 2;
-    title.y = this.isMobile ? 60 : 80;
+    title.y = this.getTopSafeY();
     this.seqContainer.addChild(title);
 
     const visuals = this.currentSequence.map((item) => this.createVisualForItem(item));
-    this.layoutHorizontalRow(this.seqContainer, visuals, title.y + (this.isMobile ? 70 : 90));
+    const afterTitleY = title.y + title.height / 2 + (this.isMobile ? 36 : 40);
+    this.layoutHorizontalRow(this.seqContainer, visuals, afterTitleY);
 
     // Display for a bit then move to distraction
     const displayTime = Math.max(3000, 350 * this.currentSequence.length);
@@ -317,8 +331,8 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
     const baseSize = 64;
     const gap = this.isMobile ? 8 : 12;
     const count = items.length;
-    const gridW = count * baseSize + (count - 1) * gap;
     const availableWidth = this.app.screen.width - 40;
+    const gridW = count * baseSize + (count - 1) * gap;
     const scale = Math.min(1.0, availableWidth / gridW);
 
     let x = (this.app.screen.width - (count * baseSize * scale + (count - 1) * gap * scale)) / 2 + baseSize * scale / 2;
@@ -336,16 +350,16 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
   // ===== DISTRACTION =====
   private setupDistractionScreen() {
     this.distractionContainer.removeChildren();
-    const title = new PIXI.Text('Distraction! Tap the rubies!', { fontSize: this.isMobile ? 24 : 32, fill: 0xffe066, fontFamily: 'SuperWater' });
+    const title = new PIXI.Text('Distraction! Tap the rubies!', { fontSize: this.isMobile ? 32 : 36, fill: 0xffe066, fontFamily: 'SuperWater', align: 'center', wordWrap: true, wordWrapWidth: this.app.screen.width - 40, breakWords: true });
     title.anchor.set(0.5);
     title.x = this.app.screen.width / 2;
-    title.y = this.isMobile ? 60 : 80;
+    title.y = this.getTopSafeY();
     this.distractionContainer.addChild(title);
 
     this.distractionTimerText = new PIXI.Text('', { fontSize: this.isMobile ? 18 : 22, fill: 0xffffff, fontFamily: 'Arial' });
     this.distractionTimerText.anchor.set(0.5);
     this.distractionTimerText.x = this.app.screen.width / 2;
-    this.distractionTimerText.y = title.y + (this.isMobile ? 36 : 44);
+    this.distractionTimerText.y = title.y + title.height / 2 + (this.isMobile ? 28 : 24);
     this.distractionContainer.addChild(this.distractionTimerText);
   }
 
@@ -362,7 +376,7 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
     this.distractionRubies = [];
 
     // Spawn bouncing rubies
-    const count = 6;
+    const count = this.DISTRACTION_RUBY_COUNT;
     for (let i = 0; i < count; i++) {
       this.spawnRuby();
     }
@@ -374,9 +388,13 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
   private spawnRuby() {
     const sprite = new PIXI.Sprite(this.rubySprite.texture);
     sprite.anchor.set(0.5);
-    sprite.width = 36; sprite.height = 36;
+    const rubySize = this.isMobile ? 56 : 36;
+    sprite.width = rubySize; sprite.height = rubySize;
     sprite.x = 40 + Math.random() * (this.app.screen.width - 80);
-    sprite.y = 140 + Math.random() * (this.app.screen.height - 220);
+    const topY = (this.distractionTimerText?.y ?? this.getTopSafeY()) + (this.distractionTimerText?.height ?? 0) / 2 + (this.isMobile ? 36 : 28);
+    const bottomY = this.app.screen.height - 100;
+    const span = Math.max(20, bottomY - topY);
+    sprite.y = topY + Math.random() * span;
     sprite.eventMode = 'static';
     sprite.cursor = 'pointer';
     sprite.on('pointerdown', (e: any) => {
@@ -388,6 +406,7 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
         .then(() => {
           this.bankRubies += this.RUBY_TAP_VALUE;
           this.scoreText.text = String(this.bankRubies);
+          this.updateScorePosition();
         })
         .catch((err) => console.error('Failed to add tap ruby:', err));
       // Shatter effect
@@ -397,10 +416,6 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
       const idx = this.distractionRubies.findIndex((r) => r.sprite === sprite);
       if (idx !== -1) this.distractionRubies.splice(idx, 1);
       sprite.destroy();
-      // Keep constant count during distraction
-      if (this.state === 'DISTRACTION' && this.distractionTimer > 0) {
-        this.spawnRuby();
-      }
     });
     const vx = (Math.random() * 2 - 1) * 0.35 * (this.isMobile ? 1.2 : 1);
     const vy = (Math.random() * 2 - 1) * 0.35 * (this.isMobile ? 1.2 : 1);
@@ -442,7 +457,8 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
     this.updateDistractionTimerText();
 
     const minX = 20, maxX = this.app.screen.width - 20;
-    const minY = 120, maxY = this.app.screen.height - 100;
+    const dynamicTop = (this.distractionTimerText?.y ?? this.getTopSafeY()) + (this.distractionTimerText?.height ?? 0) / 2 + (this.isMobile ? 36 : 28);
+    const minY = Math.max(120, dynamicTop), maxY = this.app.screen.height - 100;
     for (const r of this.distractionRubies) {
       r.sprite.x += r.vx * deltaMS;
       r.sprite.y += r.vy * deltaMS;
@@ -491,7 +507,7 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
     title.y = this.isMobile ? 60 : 80;
     this.recallContainer.addChild(title);
 
-    this.infoText = new PIXI.Text('', { fontSize: this.isMobile ? 16 : 20, fill: 0xcccccc, fontFamily: 'Arial', align: 'center' });
+    this.infoText = new PIXI.Text('', { fontSize: this.isMobile ? 18 : 22, fill: 0xcccccc, fontFamily: 'Arial', align: 'center', wordWrap: true, wordWrapWidth: this.app.screen.width - (this.isMobile ? 40 : 80), breakWords: true });
     this.infoText.anchor.set(0.5);
     this.infoText.x = this.app.screen.width / 2;
     this.infoText.y = title.y + (this.isMobile ? 32 : 40);
@@ -536,7 +552,8 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
       const g = new PIXI.Graphics();
       g.lineStyle(2, 0xaaaaaa, 1);
       g.beginFill(0x000000, 0.2);
-      g.drawRoundedRect(-30, -30, 60, 60, 10);
+      const slotSize = this.isMobile ? 80 : 60;
+      g.drawRoundedRect(-slotSize / 2, -slotSize / 2, slotSize, slotSize, 12);
       g.endFill();
       g.alpha = 0.6;
       g.eventMode = 'none';
@@ -555,6 +572,10 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
       (v as any).eventMode = 'static';
       (v as any).cursor = 'pointer';
       (v as any).on?.('pointerdown', (e: any) => { e.stopPropagation(); this.onOptionTapped(v); });
+      if (this.isMobile) {
+        // Expand hit area for easier tapping on mobile
+        (v as any).hitArea = new PIXI.Rectangle(-42, -42, 84, 84);
+      }
       return v;
     });
 
@@ -602,15 +623,16 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
   }
 
   private layoutRecallControls() {
-    const y = this.app.screen.height - (this.isMobile ? 60 : 80);
+    // Always stack vertically near the bottom center
     const centerX = this.app.screen.width / 2;
-    const gap = this.isMobile ? 120 : 160;
-    this.backspaceBtn.x = centerX - gap;
-    this.backspaceBtn.y = y;
+    const spacing = 56;
+    const baseY = this.app.screen.height - 160;
+    this.backspaceBtn.x = centerX;
+    this.backspaceBtn.y = baseY - spacing;
+    this.clearBtn.x = centerX;
+    this.clearBtn.y = baseY;
     this.submitBtn.x = centerX;
-    this.submitBtn.y = y;
-    this.clearBtn.x = centerX + gap;
-    this.clearBtn.y = y;
+    this.submitBtn.y = baseY + spacing;
   }
 
   private onOptionTapped(v: PIXI.Container & { __item?: SeqItem; __used?: boolean }) {
@@ -649,6 +671,7 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
       .then(() => {
         this.bankRubies += roundScore;
         this.scoreText.text = String(this.bankRubies);
+        this.updateScorePosition();
       })
       .catch((err) => console.error('Failed to add round rubies:', err));
     this.showRoundResult(correct, roundScore);
@@ -666,7 +689,8 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
       const g = new PIXI.Graphics();
       g.lineStyle(2, 0xaaaaaa, 1);
       g.beginFill(0x000000, 0.2);
-      g.drawRoundedRect(-30, -30, 60, 60, 10);
+      const slotSize = this.isMobile ? 80 : 60;
+      g.drawRoundedRect(-slotSize / 2, -slotSize / 2, slotSize, slotSize, 12);
       g.endFill();
       g.alpha = 0.6;
       g.eventMode = 'none';
@@ -727,7 +751,7 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
     title.y = this.app.screen.height / 3;
     overlay.addChild(title);
 
-    const details = new PIXI.Text(`Correct: ${correct}/${this.currentSequence.length}\nRound Score: +${roundScore}`, { fontSize: this.isMobile ? 20 : 24, fill: 0xffffff, fontFamily: 'Arial', align: 'center' });
+    const details = new PIXI.Text(`Correct: ${correct}/${this.currentSequence.length}\nRound Score: +${roundScore}`, { fontSize: this.isMobile ? 20 : 24, fill: 0xffffff, fontFamily: 'Arial', align: 'center', wordWrap: true, wordWrapWidth: this.app.screen.width - 80, breakWords: true });
     details.anchor.set(0.5);
     details.x = this.app.screen.width / 2;
     details.y = this.app.screen.height / 2;
@@ -763,7 +787,7 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
     title.y = this.app.screen.height / 3;
     this.endContainer.addChild(title);
 
-    const finalText = new PIXI.Text('', { fontSize: this.isMobile ? 22 : 28, fill: 0xffe066, fontFamily: 'Arial' });
+    const finalText = new PIXI.Text('', { fontSize: this.isMobile ? 22 : 28, fill: 0xffe066, fontFamily: 'Arial', align: 'center', wordWrap: true, wordWrapWidth: this.app.screen.width - 60, breakWords: true });
     finalText.anchor.set(0.5);
     finalText.x = this.app.screen.width / 2;
     finalText.y = this.app.screen.height / 2;
@@ -802,6 +826,27 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
     this.updateScorePosition();
     // Relayout recall controls if visible
     if (this.recallContainer.visible) this.layoutRecallControls();
+    this.updateTextWraps();
+  }
+
+  private updateTextWraps() {
+    const margin = this.isMobile ? 40 : 60;
+    const width = Math.max(240, this.app.screen.width - margin);
+    [this.startContainer, this.seqContainer, this.distractionContainer, this.recallContainer, this.endContainer].forEach((c) => this.updateContainerTextWrap(c, width));
+  }
+
+  private updateContainerTextWrap(container: PIXI.Container, width: number) {
+    for (const child of container.children) {
+      if (child instanceof PIXI.Text) {
+        const style: any = child.style;
+        if (style && (style.wordWrap || style.wordWrapWidth)) {
+          style.wordWrap = true;
+          style.wordWrapWidth = width;
+        }
+      } else if (child instanceof PIXI.Container) {
+        this.updateContainerTextWrap(child, width);
+      }
+    }
   }
 
   private cleanupTimeouts() {
@@ -831,6 +876,15 @@ export class SequenceRecall extends PIXI.Container implements ResizableScene {
     this.app.ticker.remove(this.gameLoop);
     this.cleanupTimeouts();
     super.destroy(options);
+  }
+
+  // Compute a safe Y for top-of-screen titles so they don't overlap the ruby counter
+  private getTopSafeY(extra: number = 0): number {
+    const fallback = this.isMobile ? 110 : 100;
+    if (this.rubySprite && this.scoreText) {
+      return this.rubySprite.y + Math.max(this.rubySprite.height, this.scoreText.height) + (this.isMobile ? 20 : 24) + extra;
+    }
+    return fallback + extra;
   }
 }
 
