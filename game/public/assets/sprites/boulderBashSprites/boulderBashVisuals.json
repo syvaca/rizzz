@@ -4,180 +4,200 @@
 			"frame": {
 				"x": 1,
 				"y": 1,
-				"w": 251,
-				"h": 533
+				"w": 260,
+				"h": 481
 			},
 			"rotated": false,
 			"trimmed": false,
 			"spriteSourceSize": {
 				"x": 0,
 				"y": 0,
-				"w": 251,
-				"h": 533
+				"w": 260,
+				"h": 481
 			},
 			"sourceSize": {
-				"w": 251,
-				"h": 533
+				"w": 260,
+				"h": 481
 			}
 		},
 		"boulder-2.png": {
 			"frame": {
-				"x": 254,
+				"x": 263,
 				"y": 1,
-				"w": 223,
-				"h": 631
+				"w": 287,
+				"h": 498
 			},
 			"rotated": false,
 			"trimmed": false,
 			"spriteSourceSize": {
 				"x": 0,
 				"y": 0,
-				"w": 223,
-				"h": 631
+				"w": 287,
+				"h": 498
 			},
 			"sourceSize": {
-				"w": 223,
-				"h": 631
+				"w": 287,
+				"h": 498
 			}
 		},
 		"boulder-3.png": {
 			"frame": {
-				"x": 479,
+				"x": 552,
 				"y": 1,
-				"w": 257,
-				"h": 544
+				"w": 305,
+				"h": 581
 			},
 			"rotated": false,
 			"trimmed": false,
 			"spriteSourceSize": {
 				"x": 0,
 				"y": 0,
-				"w": 257,
-				"h": 544
+				"w": 305,
+				"h": 581
 			},
 			"sourceSize": {
-				"w": 257,
-				"h": 544
+				"w": 305,
+				"h": 581
+			}
+		},
+		"boulder-4.png": {
+			"frame": {
+				"x": 859,
+				"y": 1,
+				"w": 296,
+				"h": 593
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 296,
+				"h": 593
+			},
+			"sourceSize": {
+				"w": 296,
+				"h": 593
 			}
 		},
 		"explosion.png": {
 			"frame": {
-				"x": 738,
+				"x": 1157,
 				"y": 1,
-				"w": 901,
-				"h": 762
+				"w": 885,
+				"h": 794
 			},
 			"rotated": false,
 			"trimmed": false,
 			"spriteSourceSize": {
 				"x": 0,
 				"y": 0,
-				"w": 901,
-				"h": 762
+				"w": 885,
+				"h": 794
 			},
 			"sourceSize": {
-				"w": 901,
-				"h": 762
+				"w": 885,
+				"h": 794
 			}
 		},
 		"robot-1.png": {
 			"frame": {
 				"x": 1,
-				"y": 765,
-				"w": 922,
-				"h": 919
+				"y": 797,
+				"w": 932,
+				"h": 900
 			},
 			"rotated": false,
 			"trimmed": false,
 			"spriteSourceSize": {
 				"x": 0,
 				"y": 0,
-				"w": 922,
-				"h": 919
+				"w": 932,
+				"h": 900
 			},
 			"sourceSize": {
-				"w": 922,
-				"h": 919
+				"w": 932,
+				"h": 900
 			}
 		},
 		"robot-2.png": {
 			"frame": {
-				"x": 925,
-				"y": 765,
-				"w": 933,
-				"h": 927
+				"x": 935,
+				"y": 797,
+				"w": 885,
+				"h": 952
 			},
 			"rotated": false,
 			"trimmed": false,
 			"spriteSourceSize": {
 				"x": 0,
 				"y": 0,
-				"w": 933,
-				"h": 927
+				"w": 885,
+				"h": 952
 			},
 			"sourceSize": {
-				"w": 933,
-				"h": 927
+				"w": 885,
+				"h": 952
 			}
 		},
 		"robot-3.png": {
 			"frame": {
-				"x": 1860,
+				"x": 2044,
 				"y": 1,
-				"w": 925,
-				"h": 924
+				"w": 756,
+				"h": 759
 			},
 			"rotated": false,
 			"trimmed": false,
 			"spriteSourceSize": {
 				"x": 0,
 				"y": 0,
-				"w": 925,
-				"h": 924
+				"w": 756,
+				"h": 759
 			},
 			"sourceSize": {
-				"w": 925,
-				"h": 924
+				"w": 756,
+				"h": 759
 			}
 		},
 		"robot-4.png": {
 			"frame": {
-				"x": 1860,
-				"y": 927,
-				"w": 976,
-				"h": 521
+				"x": 1822,
+				"y": 797,
+				"w": 1089,
+				"h": 900
 			},
 			"rotated": false,
 			"trimmed": false,
 			"spriteSourceSize": {
 				"x": 0,
 				"y": 0,
-				"w": 976,
-				"h": 521
+				"w": 1089,
+				"h": 900
 			},
 			"sourceSize": {
-				"w": 976,
-				"h": 521
+				"w": 1089,
+				"h": 900
 			}
 		},
 		"target.png": {
 			"frame": {
-				"x": 1860,
-				"y": 1450,
-				"w": 916,
-				"h": 919
+				"x": 1,
+				"y": 1699,
+				"w": 743,
+				"h": 756
 			},
 			"rotated": false,
 			"trimmed": false,
 			"spriteSourceSize": {
 				"x": 0,
 				"y": 0,
-				"w": 916,
-				"h": 919
+				"w": 743,
+				"h": 756
 			},
 			"sourceSize": {
-				"w": 916,
-				"h": 919
+				"w": 743,
+				"h": 756
 			}
 		}
 	},
@@ -187,8 +207,8 @@
 		"image": "boulderBashVisuals.png",
 		"format": "RGBA8888",
 		"size": {
-			"w": 2837,
-			"h": 2370
+			"w": 2912,
+			"h": 2456
 		},
 		"scale": "1"
 	}
