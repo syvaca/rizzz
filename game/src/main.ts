@@ -2,7 +2,7 @@ import "./firebase";
 import { Application, Assets } from 'pixi.js';
 import { MapMenuScene } from './scenes/MapMenuScene';
 import { SceneManager } from './scenes/SceneManager';
-import { initAnonymousUser } from "./firebase"; 
+import { initAnonymousUser, updateGamePlayCount } from "./firebase"; 
 import { getGameById } from './data/games';
 
 async function bootstrap() {
@@ -65,9 +65,15 @@ async function bootstrap() {
   function showMapMenu() {
     const mapMenu = new MapMenuScene(
       app,
-      (gameId) => {
+      async (gameId) => {
         const gameData = getGameById(gameId);
         if (gameData && gameData.sceneClass) {
+          try {
+            await updateGamePlayCount(gameId);
+            console.log(`Game play count updated for: ${gameId}`);
+          } catch (error) {
+            console.error('Failed to update game play count:', error);
+          }
           // Create and show the game scene
           const gameScene = new gameData.sceneClass(app, user_id, showMapMenu);
           sceneManager.changeScene(gameScene);

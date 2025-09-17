@@ -17,14 +17,6 @@ const firebaseConfig = {
   measurementId: "G-JDHTPKBSR8"
 };
 
-type SongStatus =
-  | 'locked'
-  | 'unlocked-unplayed'
-  | 'unlocked-one-star'
-  | 'unlocked-two-star'
-  | 'unlocked-three-star'
-  | 'unlocked-gold';
-
 interface UserPowerups {
   'multiplier': number;
   'extra-life': number;
@@ -37,6 +29,7 @@ export const database = getDatabase(app);
 const auth = getAuth(app);
 
 export const usersRef = ref(database, "users");
+export const gamesRef = ref(database, "games");
 
 const initialPowerups: UserPowerups = {
   'multiplier': 0,
@@ -212,5 +205,26 @@ export function getGameLeaderboard(gameId: string): Promise<Array<{userId: strin
         leaderboard.sort((a, b) => b.score - a.score);
         
         return leaderboard.slice(0, 10);
+    });
+}
+
+/**
+ * Updates the play count for a specific game
+ * @param gameId The ID of the game that was played
+ */
+export function updateGamePlayCount(gameId: string): Promise<void> {
+    const gamePlayCountRef = ref(database, `games/${gameId}`);
+    return runTransaction(gamePlayCountRef, (currentCount) => {
+        // currentCount may be null on first play
+        return (currentCount ?? 0) + 1;
+    })
+    .then(result => {
+        if (!result.committed) {
+            console.warn(`Game play count transaction aborted for ${gameId}`);
+        }
+    })
+    .catch(err => {
+        console.error(`Failed to update game play count for ${gameId}:`, err);
+        throw err;
     });
 }
