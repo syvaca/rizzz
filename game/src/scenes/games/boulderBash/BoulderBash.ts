@@ -1,13 +1,10 @@
 import { Assets, AnimatedSprite, Application, Container, Graphics, Sprite, Spritesheet, Text, Texture, Ticker } from 'pixi.js';
-import { playExplosionSound, playAlienPadSound } from './audio';
 import { ResizableScene } from '../../SceneManager';
 import type { TrackMeta } from './types';
 import { getUserHighScore, updateUserRubies } from "../../../firebase";
 
 export interface BoulderBashParams {
-  audioTrack: string;
   meta?: TrackMeta;
-  bpm: number;
   round: number;
   difficulty: 'easy' | 'medium' | 'hard' | 'hard';
   bettingMode: string;
@@ -16,11 +13,8 @@ export interface BoulderBashParams {
 export class BoulderBashScene extends Container implements ResizableScene {
   public onRoundComplete?: (rubiesEarned: number, streaks: string[], win: boolean) => void;
   /* ─────────────────────────────── Config ──────────────────────────────── */
-  private BEAT_DURATION_MS: number; // duration of a quarter-note beat
-  private readonly LEAD_TIME_BEATS = 1; // cue appears this many beats early
   private readonly PAD_RELEASE_MS = 300; // pad stays lit longer for more forgiving gameplay
-  private readonly debounceBeats = 1; // prevent double cues per loop
-  private TILES_SPEED_MS = 2000; // time it takes for a tile to reach the pad
+  private TILES_SPEED_MS = 1200; // time it takes for a tile to reach the pad
   private readonly TILE_SPAWN_Y = 100; // astroid spawn
 
   // Timing windows (ms) – made larger for more forgiving gameplay
@@ -57,7 +51,7 @@ export class BoulderBashScene extends Container implements ResizableScene {
   private sceneEnded = false;
   private pendingTimeouts: Set<number> = new Set(); // Track timeouts for cleanup
 
-  private startPerfTime = 0; // performance.now() at audio start
+  private startPerfTime = 0; // performance.now() at game start
   private currentBeat = 0; // last processed beat number (int)
   private nextVisualBeat = 0;
   private readonly beatsTarget: number;            // real length (meta or fallback)
@@ -81,21 +75,11 @@ export class BoulderBashScene extends Container implements ResizableScene {
   private scoreText!: Text;
   private streakText!: Text;
   private heartSprites: Sprite[] = [];
-  private alienSprite!: Sprite;
-  private alienTextures: Texture[] = [];
+  private robotSprite!: Sprite;
+  private robotTextures: Texture[] = [];
 
-
-  /* Progress Bar */
-  private progressBarContainer!: Graphics;
-  private progressBarFill!: Graphics;
-  private progressBarCheckpoints: (Sprite | Graphics)[] = [];
-
-  /* audio */
-  private readonly backingTrack: HTMLAudioElement;
   private readonly params: BoulderBashParams = {
-    audioTrack: '/assets/audio/boulder-bash-track.mp3', // You'll need to provide the actual audio file
     meta: undefined, // No metadata for now
-    bpm: 120, // Default BPM
     round: 1,
     difficulty: 'medium' as const,
     bettingMode: 'standard'
@@ -139,13 +123,13 @@ export class BoulderBashScene extends Container implements ResizableScene {
     this.padLayer = new Container();
     this.addChild(this.padLayer);  // pads go above tiles
     
-    const alienSprite = new Sprite(Texture.from('robot-1.png'));
+    const robotSprite = new Sprite(Texture.from('robot-1.png'));
 
-    alienSprite.anchor.set(0.5, 1); // center horizontally, bottom aligned
-    alienSprite.scale.set(0.1); // adjust size to taste
-    this.addChild(alienSprite);
-    this.alienSprite = alienSprite; // optionally store as a member if needed later
-    this.alienTextures = [
+    robotSprite.anchor.set(0.5, 1); // center horizontally, bottom aligned
+    robotSprite.scale.set(0.1); // adjust size to taste
+    this.addChild(robotSprite);
+    this.robotSprite = robotSprite; // optionally store as a member if needed later
+    this.robotTextures = [
       Texture.from('robot-1.png'), // 3 lives
       Texture.from('robot-2.png'), // 2 lives
       Texture.from('robot-3.png'), // 1 life
@@ -155,23 +139,8 @@ export class BoulderBashScene extends Container implements ResizableScene {
     this.createHUD();
     this.resize();
     
-
-    /* Audio */
-    this.backingTrack = new Audio(this.params.audioTrack);
-    this.backingTrack.preload = 'auto';
-    this.backingTrack.loop = true;
-    
-    // Use a fallback BPM if the provided one is invalid
-    const bpm = (typeof this.params.bpm === 'number' && !isNaN(this.params.bpm) && this.params.bpm > 0) ? this.params.bpm : 90;
-    this.BEAT_DURATION_MS = (60000 / bpm);
-
     /* Betting Settings */
     this.setBettingMode();
-
-    // Adjust beat duration for playback rate changes
-    const playbackRate = this.backingTrack.playbackRate || 1; // Fallback to 1 if not set
-    this.BEAT_DURATION_MS = this.BEAT_DURATION_MS / playbackRate;
-    console.log('Final BEAT_DURATION_MS:', this.BEAT_DURATION_MS, 'playbackRate:', playbackRate);
 
     /* Bind input */
     this.pads.forEach((pad, idx) => {
@@ -190,9 +159,9 @@ export class BoulderBashScene extends Container implements ResizableScene {
   private buildAccentPattern(difficulty: 'easy' | 'medium' | 'hard'): number[] {
 
     if (difficulty === 'easy') {
-      this.TILES_SPEED_MS = 2000; // 2 seconds to reach the pad
+      this.TILES_SPEED_MS = 1200; // 1.2 seconds to reach the pad
     } else if (difficulty === 'medium') {
-      this.TILES_SPEED_MS = 1000;
+      this.TILES_SPEED_MS = 800;
     } else {
       this.TILES_SPEED_MS = 500;
     }
@@ -234,8 +203,8 @@ export class BoulderBashScene extends Container implements ResizableScene {
     const totalWidth = padSize * this.pads.length + gap * (this.pads.length - 1);
   
     const startX = (width - totalWidth) / 2;
-    const alienTopY = this.alienSprite.y - this.alienSprite.height;
-    const startY = alienTopY - padSize - 20; // 20px gap above alien
+    const robotTopY = this.robotSprite.y - this.robotSprite.height;
+    const startY = robotTopY - padSize - 20; // 20px gap above robot
   
     this.pads.forEach((pad, i) => {
       pad.width = pad.height = padSize;
@@ -255,66 +224,6 @@ export class BoulderBashScene extends Container implements ResizableScene {
     this.scoreRuby.y = 24;
     
     this.scoreContainer.addChild(this.scoreRuby);
-  }
-
-  private createProgressBar() {
-    const barWidth = this.app.renderer.width * 0.4;
-    const barHeight = this.heartSprites[0]?.height || 20;
-  
-    const x = (this.app.renderer.width - barWidth) / 2;
-    const y = 16;
-  
-    // Background bar
-    this.progressBarContainer = new Graphics();
-    this.progressBarContainer.beginFill(0xffffff, 0.2);
-    this.progressBarContainer.drawRoundedRect(0, 0, barWidth, barHeight, barHeight / 2);
-    this.progressBarContainer.endFill();
-    this.progressBarContainer.x = x;
-    this.progressBarContainer.y = y;
-    this.addChild(this.progressBarContainer);
-  
-    // Fill bar
-    this.progressBarFill = new Graphics();
-    this.progressBarFill.beginFill(0xffff66);
-    this.progressBarFill.drawRoundedRect(0, 0, barWidth * this.params.round * 0.25, barHeight, barHeight / 2);
-    this.progressBarFill.endFill();
-    this.progressBarFill.x = x;
-    this.progressBarFill.y = y;
-    this.addChild(this.progressBarFill);
-  
-    // Clear old checkpoints if any
-    this.progressBarCheckpoints.forEach(cp => cp.destroy());
-    this.progressBarCheckpoints = [];
-  
-    // Checkpoint positions (percentages)
-    const checkpoints = [0.25, 0.5, 0.75];
-  
-    checkpoints.forEach(p => {
-      const star = new Sprite(Assets.get('star') ?? Texture.EMPTY);
-      star.anchor.set(0.5, 0.5);
-      star.scale.set(barHeight / star.height * 1.2); // scale star to about bar height, slight bigger
-      star.x = x + p * barWidth;
-      star.y = y + barHeight / 2;
-      this.addChild(star);
-      this.progressBarCheckpoints.push(star);
-    });
-  }
-  
-  private updateProgressBar() {
-    if (!this.progressBarFill) return;
-  
-    const barWidth = this.app.renderer.width * 0.5;
-    const barHeight = this.heartSprites[0].height;
-  
-    const totalRounds = 4;
-    const baseProgress = this.params.round / totalRounds;
-    const segmentProgress = Math.min(this.correctHits / (this.beatsTarget-3), 1);
-    const fillWidth = (baseProgress + segmentProgress * 0.25) * barWidth;
-  
-    this.progressBarFill.clear();
-    this.progressBarFill.beginFill(0xffff66);
-    this.progressBarFill.drawRoundedRect(0, 0, fillWidth, barHeight, barHeight / 2);
-    this.progressBarFill.endFill();
   }
   
   private createHUD() {
@@ -342,12 +251,10 @@ export class BoulderBashScene extends Container implements ResizableScene {
     const fullTex = Texture.from('heart-full.png');
     for (let i = 0; i < 3; i++) {
       const spr = new Sprite(fullTex);
-      spr.scale.set(0.35); // smaller heart
+      spr.scale.set(0.15);
       this.heartSprites.push(spr);
       this.addChild(spr);
     }
-
-    this.createProgressBar();
 
     this.updateHUDPosition();
     this.updateHUD();
@@ -373,41 +280,7 @@ export class BoulderBashScene extends Container implements ResizableScene {
       spr.y = hy;
       hx += spr.width + heartSpacing;
     });
-  
-    // ─── Progress Bar (Center 50%) ───
-    const barWidth = centerWidth * 0.9; // slight padding inside center
-    const barHeight = this.heartSprites[0]?.height || 20;
-    const barX = leftWidth + (centerWidth - barWidth) / 2;
-    const barY = topPadding;
-  
-    this.progressBarContainer.clear();
-    this.progressBarContainer.beginFill(0xffffff, 0.2);
-    this.progressBarContainer.drawRoundedRect(0, 0, barWidth, barHeight, barHeight / 2);
-    this.progressBarContainer.endFill();
-    this.progressBarContainer.x = barX;
-    this.progressBarContainer.y = barY;
-  
-    this.progressBarFill.x = barX;
-    this.progressBarFill.y = barY;
-  
-    // Clear and re-add checkpoint lines
-    this.progressBarCheckpoints.forEach(cp => cp.destroy());
-    this.progressBarCheckpoints = [];
-    const checkpoints = [0.25, 0.5, 0.75];
-    const lineHeight = barHeight;
-    const lineWidth = 3;
-  
-    checkpoints.forEach(p => {
-      const line = new Graphics();
-      line.beginFill(0xffffff, 0.8);
-      line.drawRect(0, 0, lineWidth, lineHeight);
-      line.endFill();
-      line.x = barX + p * barWidth - lineWidth / 2;
-      line.y = barY;
-      this.addChild(line);
-      this.progressBarCheckpoints.push(line);
-    });
-  
+
     // ─── Ruby + Score (Right 25%) ───
     const bounds = this.scoreContainer.getLocalBounds();
     const scoreX = leftWidth + centerWidth + (rightWidth - bounds.width) / 2;
@@ -421,22 +294,22 @@ export class BoulderBashScene extends Container implements ResizableScene {
     }
   }
 
-  private updateAlienPosition() {
+  private updateRobotPosition() {
     const { width, height } = this.app.renderer;
   
     const maxScale = 0.5;
     const minDimension = Math.min(width, height);
     
-    // Alien size should scale with screen size
+    // Robot size should scale with screen size
     const desiredScale = minDimension / 1000; // tweak 1000 to adjust scale responsiveness
     const finalScale = Math.min(desiredScale, maxScale);
   
-    this.alienSprite.scale.set(finalScale*.2);
+    this.robotSprite.scale.set(finalScale*.2);
   
-    this.alienSprite.x = width / 2;
+    this.robotSprite.x = width / 2;
   
-    const paddingBelow = 40; // fixed pixel padding below the alien
-    this.alienSprite.y = height - paddingBelow;
+    const paddingBelow = 40; // fixed pixel padding below the robot
+    this.robotSprite.y = height - paddingBelow;
   }
   
   private updateTilesPosition() {
@@ -460,10 +333,8 @@ export class BoulderBashScene extends Container implements ResizableScene {
   private setBettingMode() {
     if (this.params.bettingMode === 'speed') { // done
       this.pointMultiplier = 2;
-      this.backingTrack.playbackRate = 1.2;
     } else if (this.params.bettingMode === 'slow') { // done
       this.pointMultiplier = 0.5;
-      this.backingTrack.playbackRate = 0.85;
     } else if (this.params.bettingMode === 'double') { // done
       this.lives = 1;
       this.pointMultiplier = 2;
@@ -475,8 +346,6 @@ export class BoulderBashScene extends Container implements ResizableScene {
       this.pointMultiplier = 1;
     } else if (this.params.bettingMode === 'chipmunk') { // done
       this.pointMultiplier = 3;
-      this.backingTrack.playbackRate = 1.2;
-      this.backingTrack.preservesPitch = false;
     }
 
     console.log("Mode: ", this.params.bettingMode);
@@ -497,7 +366,7 @@ export class BoulderBashScene extends Container implements ResizableScene {
 
   public resize() {
     this.updateBackgroundPosition();
-    this.updateAlienPosition();
+    this.updateRobotPosition();
     this.updatePadsPosition();
     this.updateHUDPosition();
     this.updateTilesPosition();
@@ -555,40 +424,22 @@ export class BoulderBashScene extends Container implements ResizableScene {
   
 
   private startGame() {
-    // Start track & clock
-    const firstOnset = this.params.meta?.onsets?.[0] ?? 0;
-    const startOffset = Math.max(0, firstOnset - 5);
-    this.backingTrack.currentTime = startOffset;
-    this.backingTrack.volume = 1;
-    void this.backingTrack.play();
+    // Start game clock
     this.startPerfTime = performance.now(); 
 
     // Start round immediately so misses count from the beginning
     this.roundStarted = true;
 
     this.app.ticker.add(this.update, this);
-    if (this.params.meta?.onsets && this.params.meta.onsets.length > 0) {
-      const onsets = this.params.meta.onsets;
-      onsets.forEach((t, idx) => {
-        const padId = this.accentMap[idx % this.accentMap.length];
-        if (padId === 0) return;
-        const expectedHit = this.startPerfTime + (t - startOffset) * 1000;
-        const spawnTime = expectedHit - this.TILES_SPEED_MS;
-        const pad = this.pads[padId - 1];
-        this.scheduledTiles.push({ padId, spawnTime, expectedHitTime: expectedHit, padX: pad.x, padY: pad.y, padSize: pad.width });
-        this.scheduleCue(padId, expectedHit);
-      });
-    } else {
-      // Fallback to original if not metadata
-      for (let beatIndex = 0; beatIndex < this.beatsTarget; beatIndex++) {
-        const padId = this.accentMap[beatIndex % this.accentMap.length];
-        if (padId === 0) continue;
-        const expectedHit = this.startPerfTime + (beatIndex + this.LEAD_TIME_BEATS) * this.BEAT_DURATION_MS + this.initialDelayMs; // apply initial delay
-        const spawnTime = expectedHit - this.TILES_SPEED_MS;
-        const pad = this.pads[padId - 1];
-        this.scheduledTiles.push({ padId, spawnTime, expectedHitTime: expectedHit, padX: pad.x, padY: pad.y, padSize: pad.width });
-        this.scheduleCue(padId, expectedHit);
-      }
+    // Generate game sequence
+    for (let beatIndex = 0; beatIndex < this.beatsTarget; beatIndex++) {
+      const padId = this.accentMap[beatIndex % this.accentMap.length];
+      if (padId === 0) continue;
+      const expectedHit = this.startPerfTime + beatIndex * 600 + this.initialDelayMs; // 0.6 second intervals (100 BPM)
+      const spawnTime = expectedHit - this.TILES_SPEED_MS;
+      const pad = this.pads[padId - 1];
+      this.scheduledTiles.push({ padId, spawnTime, expectedHitTime: expectedHit, padX: pad.x, padY: pad.y, padSize: pad.width });
+      this.scheduleCue(padId, expectedHit);
     }
   }
 
@@ -612,7 +463,6 @@ export class BoulderBashScene extends Container implements ResizableScene {
       } else {
         this.showOutOfLivesOverlay();
       }
-      this.fadeOutMusic(2000);
     }
   }
 
@@ -715,8 +565,6 @@ export class BoulderBashScene extends Container implements ResizableScene {
   }
 
   private onPadPress(idx: number) {
-    playAlienPadSound(idx);
-
     if (!this.roundStarted) {
       this.roundStarted = true;
       this.tapStartBeat = this.currentBeat;
@@ -786,21 +634,13 @@ export class BoulderBashScene extends Container implements ResizableScene {
     this.showFeedback(idx, label, 0x66ff66);
     this.updateHUD();
 
-    // Streak milestones
-    if ([10, 25, 50].includes(this.streak)) {
-      this.fxLayerUnlock(this.streak);
-    }
-
     this.completedCues += 1;
     // Wins round
     if (this.completedCues >= this.beatsTarget && !this.sceneEnded) {
       this.sceneEnded = true;
       this.app.ticker.remove(this.update, this);
       this.showWinOverlay();
-      this.fadeOutMusic(2000);
     }
-
-    // fade music, show win overlay
   }
 
   private registerMiss(idx: number) {
@@ -809,8 +649,6 @@ export class BoulderBashScene extends Container implements ResizableScene {
       this.lives = Math.max(0, this.lives - 1);
     }
 
-    // Play soft thud – lower pitch index 0
-    playExplosionSound();
     this.showFeedback(idx, 'Miss', 0xff6666);
     this.updateHUD();
 
@@ -820,7 +658,6 @@ export class BoulderBashScene extends Container implements ResizableScene {
       // Stop scheduling further cues
       this.app.ticker.remove(this.update, this);
       this.showOutOfLivesOverlay();
-      this.fadeOutMusic(2000);
     }
   }
 
@@ -850,41 +687,19 @@ export class BoulderBashScene extends Container implements ResizableScene {
 
   private updateHUD() {
     this.scoreText.text = `${this.score}`;
-    this.streakText.text = this.streak > 0 ? `Streak: ${this.streak}` : '';
-    this.updateProgressBar();
     // update heart textures
     this.heartSprites.forEach((spr, idx) => {
       spr.texture = Texture.from(idx < this.lives ? 'heart-full.png' : 'heart-dark.png');
     });
-    // Change alien face based on lives left
+    // Change robot face based on lives left
     if (this.lives >= 1 && this.lives <= 3) {
       const textureIdx = 3 - this.lives;
-      this.alienSprite.texture = this.alienTextures[textureIdx];
+      this.robotSprite.texture = this.robotTextures[textureIdx];
     }
     this.updateHUDPosition();
   }
 
-  /* Placeholder for unlocking extra FX layers */
-  private fxLayerUnlock(level: number) {
-    console.log(`FX layer unlock at streak ${level}`);
-  }
-
   /* ─────────────────────────── Out-of-Lives UI & Audio ─────────────────────────── */
-  private fadeOutMusic(duration: number = 1000, onComplete?: () => void) {
-    const startVol = this.backingTrack.volume;
-    const startTime = performance.now();
-    const step = () => {
-      const progress = Math.min(1, (performance.now() - startTime) / duration);
-      this.backingTrack.volume = startVol * (1 - progress);
-      if (progress < 1) {
-        requestAnimationFrame(step);
-      } else {
-        onComplete?.();
-      }
-    };
-    step();
-  }
-
   private async showOutOfLivesOverlay() {
 
     await updateUserRubies(this.user_id, this.score);
@@ -919,15 +734,15 @@ export class BoulderBashScene extends Container implements ResizableScene {
     label.y = this.app.renderer.height / 2;
     this.addChild(label);
   
-    // Swap alien texture to robot-4.png and fade it out
-    this.alienSprite.texture = Texture.from('robot-4.png');
+    // Swap robot texture to robot-4.png and fade it out
+    this.robotSprite.texture = Texture.from('robot-4.png');
   
     const duration = 2000;
     const startTime = performance.now();
   
     const fadeOut = (time: number) => {
       const progress = Math.min((time - startTime) / duration, 1);
-      this.alienSprite.alpha = 1 - progress;
+      this.robotSprite.alpha = 1 - progress;
   
       if (progress < 1) {
         requestAnimationFrame(fadeOut);
@@ -975,15 +790,15 @@ export class BoulderBashScene extends Container implements ResizableScene {
     this.addChild(label);
   
     const duration = 2000;
-    const startY = this.alienSprite.y;
-    const startScale = this.alienSprite.scale.x;
+    const startY = this.robotSprite.y;
+    const startScale = this.robotSprite.scale.x;
   
     const startTime = performance.now();
     const animate = (time: number) => {
       const progress = Math.min((time - startTime) / duration, 1);
-      this.alienSprite.y = startY - progress * (this.app.renderer.height + 200); // move off screen
+      this.robotSprite.y = startY - progress * (this.app.renderer.height + 200); // move off screen
       const scale = startScale * (1 - progress * 0.8); // shrink
-      this.alienSprite.scale.set(Math.max(scale, 0.1));
+      this.robotSprite.scale.set(Math.max(scale, 0.1));
   
       if (progress < 1) {
         requestAnimationFrame(animate);
@@ -1013,6 +828,5 @@ export class BoulderBashScene extends Container implements ResizableScene {
   /* ─────────────────────────── Cleanup / Exit ─────────────────────────── */
   public endScene() {
     this.app.ticker.remove(this.update, this);
-    this.backingTrack.pause();
   }
 }
