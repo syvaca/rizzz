@@ -188,7 +188,7 @@ export class AnimalFinderGame extends Container implements ResizableScene {
     animalSprite.anchor.set(0.5);
     animalSprite.x = window.innerWidth - 50; // Same x as poster
     animalSprite.y = 50 + 5; // Slightly lower than poster center
-    animalSprite.scale.set(0.08); // Make animal smaller than poster
+    animalSprite.scale.set(0.07); // Make animal smaller than poster
     this.addChild(animalSprite);
 
   }
