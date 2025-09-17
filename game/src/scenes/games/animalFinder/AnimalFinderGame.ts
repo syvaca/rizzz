@@ -117,10 +117,10 @@ export class AnimalFinderGame extends Container implements ResizableScene {
     const atlas = await Assets.load('/assets/sprites/animalFinderSprites/animals.json');
 
     return {
-      monkey: atlas.textures['monkey.png'],
-      giraffe: atlas.textures['giraffe.png'],
-      jaguar: atlas.textures['jaguar.png'],
-      lion: atlas.textures['lion.png']
+      monkey: atlas.textures['monkey_yellow1.png'],
+      giraffe: atlas.textures['giraffe_yellow1.png'],
+      jaguar: atlas.textures['jaguar_yellow1.png'],
+      lion: atlas.textures['lion_yellow1.png']
     };
   }
 
@@ -173,7 +173,7 @@ export class AnimalFinderGame extends Container implements ResizableScene {
     // Wanted poster and animal in upper right corner
     const atlas = await Assets.load('/assets/sprites/animalFinderSprites/animals.json');
     const posterTexture = atlas.textures['wanted poster.png'];
-    const animalTexture = atlas.textures[`${this.wantedAnimalType}.png`];
+    const animalTexture = atlas.textures[`${this.wantedAnimalType}_yellow1.png`];
     
     // Create poster sprite
     const posterSprite = new Sprite(posterTexture);
@@ -188,7 +188,7 @@ export class AnimalFinderGame extends Container implements ResizableScene {
     animalSprite.anchor.set(0.5);
     animalSprite.x = window.innerWidth - 50; // Same x as poster
     animalSprite.y = 50 + 5; // Slightly lower than poster center
-    animalSprite.scale.set(0.08); // Make animal smaller than poster
+    animalSprite.scale.set(0.07); // Make animal smaller than poster
     this.addChild(animalSprite);
 
   }
