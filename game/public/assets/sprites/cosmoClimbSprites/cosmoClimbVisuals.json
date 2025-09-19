@@ -60,10 +60,30 @@
 				"h": 654
 			}
 		},
-		"monster-1.png": {
+		"black-hole-x.png": {
 			"frame": {
 				"x": 1635,
 				"y": 1,
+				"w": 514,
+				"h": 495
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 514,
+				"h": 495
+			},
+			"sourceSize": {
+				"w": 514,
+				"h": 495
+			}
+		},
+		"monster-1.png": {
+			"frame": {
+				"x": 1635,
+				"y": 498,
 				"w": 431,
 				"h": 447
 			},
@@ -82,8 +102,8 @@
 		},
 		"monster-2.png": {
 			"frame": {
-				"x": 694,
-				"y": 1073,
+				"x": 1635,
+				"y": 947,
 				"w": 508,
 				"h": 512
 			},
@@ -102,8 +122,8 @@
 		},
 		"monster-3.png": {
 			"frame": {
-				"x": 1635,
-				"y": 450,
+				"x": 694,
+				"y": 1461,
 				"w": 498,
 				"h": 456
 			},
@@ -118,32 +138,92 @@
 			"sourceSize": {
 				"w": 498,
 				"h": 456
+			}
+		},
+		"monster-x.png": {
+			"frame": {
+				"x": 1194,
+				"y": 1461,
+				"w": 341,
+				"h": 342
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 341,
+				"h": 342
+			},
+			"sourceSize": {
+				"w": 341,
+				"h": 342
 			}
 		},
 		"powercell.png": {
 			"frame": {
-				"x": 1204,
-				"y": 1073,
-				"w": 548,
-				"h": 868
+				"x": 2151,
+				"y": 1,
+				"w": 542,
+				"h": 824
 			},
 			"rotated": false,
 			"trimmed": false,
 			"spriteSourceSize": {
 				"x": 0,
 				"y": 0,
-				"w": 548,
-				"h": 868
+				"w": 542,
+				"h": 824
 			},
 			"sourceSize": {
-				"w": 548,
-				"h": 868
+				"w": 542,
+				"h": 824
+			}
+		},
+		"powercell-check.png": {
+			"frame": {
+				"x": 2145,
+				"y": 827,
+				"w": 385,
+				"h": 530
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 385,
+				"h": 530
+			},
+			"sourceSize": {
+				"w": 385,
+				"h": 530
+			}
+		},
+		"rocket-check.png": {
+			"frame": {
+				"x": 2532,
+				"y": 827,
+				"w": 153,
+				"h": 238
+			},
+			"rotated": false,
+			"trimmed": false,
+			"spriteSourceSize": {
+				"x": 0,
+				"y": 0,
+				"w": 153,
+				"h": 238
+			},
+			"sourceSize": {
+				"w": 153,
+				"h": 238
 			}
 		},
 		"rocket-off.png": {
 			"frame": {
-				"x": 1754,
-				"y": 908,
+				"x": 2532,
+				"y": 1067,
 				"w": 272,
 				"h": 438
 			},
@@ -162,8 +242,8 @@
 		},
 		"rocket-on.png": {
 			"frame": {
-				"x": 1754,
-				"y": 1348,
+				"x": 1537,
+				"y": 1507,
 				"w": 272,
 				"h": 572
 			},
@@ -182,8 +262,8 @@
 		},
 		"ruby.png": {
 			"frame": {
-				"x": 2068,
-				"y": 1,
+				"x": 2145,
+				"y": 1359,
 				"w": 285,
 				"h": 269
 			},
@@ -202,8 +282,8 @@
 		},
 		"solar-storm.png": {
 			"frame": {
-				"x": 2355,
-				"y": 1,
+				"x": 1,
+				"y": 2081,
 				"w": 1024,
 				"h": 811
 			},
@@ -227,8 +307,8 @@
 		"image": "cosmoClimbVisuals.png",
 		"format": "RGBA8888",
 		"size": {
-			"w": 3380,
-			"h": 1942
+			"w": 2805,
+			"h": 2893
 		},
 		"scale": "1"
 	}
