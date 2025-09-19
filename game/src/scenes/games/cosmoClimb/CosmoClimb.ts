@@ -227,13 +227,50 @@ export class CosmoClimbScene extends Container implements ResizableScene {
     g.drawRect(0, 0, this.app.renderer.width, this.app.renderer.height);
     g.endFill();
     this.startOverlay.addChild(g);
-    const t = new Text('Tap Left and Right to Move\n Collect Powerups to Speed Up\n Avoid Monsters and Black Holes', {
-      fontFamily: 'Chewy', fontSize: 36, fill: 0xffffff, stroke: 0x000000, strokeThickness: 6, align: 'center'
+    // Create sprite rows for instructions
+    const spriteContainer = new Container();
+    spriteContainer.x = this.app.renderer.width / 2;
+    spriteContainer.y = this.app.renderer.height / 2;
+    
+    const row1Sprites = ['powercell-check.png', 'rocket-check.png', 'black-hole-x.png', 'monster-x.png'];
+    
+    const spriteSize = 60;
+    const spacing = 80;
+    const rowSpacing = 100;
+    
+    row1Sprites.forEach((spriteName, index) => {
+      const sprite = new Sprite(this.visuals.textures[spriteName]);
+      sprite.anchor.set(0.5);
+      
+      // Scale proportionally to fit within spriteSize while maintaining aspect ratio
+      const texture = sprite.texture;
+      const aspectRatio = texture.width / texture.height;
+      
+      if (aspectRatio > 1) {
+        // Wider than tall
+        sprite.width = spriteSize;
+        sprite.height = spriteSize / aspectRatio;
+      } else {
+        // Taller than wide
+        sprite.height = spriteSize;
+        sprite.width = spriteSize * aspectRatio;
+      }
+      
+      sprite.x = (index - 1.5) * spacing; // Center the row
+      sprite.y = 0; // Center vertically in container
+      spriteContainer.addChild(sprite);
+    });
+    
+    this.startOverlay.addChild(spriteContainer);
+    
+    // Add instruction text below the sprites
+    const instructionText = new Text('Tap left and right to move\nKeep climbing to escape the solar storm!', {
+      fontFamily: 'Chewy', fontSize: Math.min(36, this.app.renderer.width / 20), fill: 0xffffff, stroke: 0x000000, strokeThickness: 6, align: 'center'
     } as any);
-    t.anchor.set(0.5);
-    t.x = this.app.renderer.width / 2;
-    t.y = this.app.renderer.height / 2;
-    this.startOverlay.addChild(t);
+    instructionText.anchor.set(0.5);
+    instructionText.x = this.app.renderer.width / 2;
+    instructionText.y = this.app.renderer.height / 2 + 80; // Position below the sprites
+    this.startOverlay.addChild(instructionText);
     this.startOverlay.interactive = true;
     this.startOverlay.eventMode = 'static';
     this.startOverlay.hitArea = new Rectangle(0, 0, this.app.renderer.width, this.app.renderer.height);
