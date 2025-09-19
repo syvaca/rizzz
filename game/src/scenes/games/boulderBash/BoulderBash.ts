@@ -1,21 +1,12 @@
-import { Assets, AnimatedSprite, Application, Container, Graphics, Sprite, Spritesheet, Text, Texture, Ticker } from 'pixi.js';
+import { Application, Container, Graphics, Sprite, Text, Texture, Ticker } from 'pixi.js';
 import { ResizableScene } from '../../SceneManager';
-import type { TrackMeta } from './types';
-import { getUserHighScore, updateUserRubies } from "../../../firebase";
-
-export interface BoulderBashParams {
-  meta?: TrackMeta;
-  round: number;
-  difficulty: 'easy' | 'medium' | 'hard' | 'hard';
-  bettingMode: string;
-}
+import { updateUserRubies } from "../../../firebase";
 
 export class BoulderBashScene extends Container implements ResizableScene {
-  public onRoundComplete?: (rubiesEarned: number, streaks: string[], win: boolean) => void;
   /* ─────────────────────────────── Config ──────────────────────────────── */
-  private readonly PAD_RELEASE_MS = 300; // pad stays lit longer for more forgiving gameplay
-  private TILES_SPEED_MS = 1200; // time it takes for a tile to reach the pad
-  private readonly TILE_SPAWN_Y = 100; // astroid spawn
+  private readonly TARGET_RELEASE_MS = 300; // target stays available to hit for longer for more forgiving gameplay
+  private BOULDERS_SPEED_MS = 1200; // current speed (will increase each round)
+  private readonly BOULDER_SPAWN_Y = 100; // asteroid spawn
 
   // Timing windows (ms) – made larger for more forgiving gameplay
   private static readonly BASE_PERFECT = 200;
@@ -25,49 +16,41 @@ export class BoulderBashScene extends Container implements ResizableScene {
   private correctHits = 0;
 
   /* ───────────────────────────── Game Objects ─────────────────────────── */
-  private pads: Sprite[] = [];
-  private padUnlitTextures: Texture[] = [];
-  private padLitTextures: Texture[] = [];
+  private targets: Sprite[] = [];
   private background!: Sprite;
-  private tileLayer!: Container;
-  private padLayer!: Container;
+  private boulderLayer!: Container;
+  private targetLayer!: Container;
 
-  /* ──────────────────────── Visual Tile Scheduling ─────────────────────── */
-  private scheduledTiles: Array<{
-    padId: number;
+  /* ──────────────────────── Visual Boulder Scheduling ─────────────────────── */
+  private scheduledBoulders: Array<{
+    targetId: number;
     spawnTime: number;
     expectedHitTime: number;
-    padX: number;
-    padY: number;
-    padSize: number;
+    targetX: number;
+    targetY: number;
+    targetSize: number;
     sprite?: Sprite;
   }> = [];
 
   /* ─────────────────────────────── State ──────────────────────────────── */
   private accentMap: number[] = [];
-  private lastCueForPad: number[] = [ -Infinity, -Infinity, -Infinity, -Infinity, -Infinity ];
-  private activeCues: Map<number, number[]> = new Map(); // queue of expected hit times per pad
+  private activeCues: Map<number, number[]> = new Map(); // queue of expected hit times per target
 
   private sceneEnded = false;
-  private pendingTimeouts: Set<number> = new Set(); // Track timeouts for cleanup
-
   private startPerfTime = 0; // performance.now() at game start
-  private currentBeat = 0; // last processed beat number (int)
-  private nextVisualBeat = 0;
-  private readonly beatsTarget: number;            // real length (meta or fallback)
-  private completedCues = 1;
+  private readonly beatsTarget: number = 32; // beats per round
+  private completedCues = 0;
   private readonly initialDelayMs = 1000; // 1 second delay  
 
   
   private score = 0;
   private streak = 0;
   private maxStreak = 0;
-  private combos: string[] = [];
 
   /* Lives & round state */
   private lives = 3;
+  private currentRound = 1;
   private roundStarted = false;
-  private tapStartBeat: number | null = null;
 
   /* UI */
   private scoreContainer!: Container; // container for score and ruby
@@ -78,20 +61,6 @@ export class BoulderBashScene extends Container implements ResizableScene {
   private robotSprite!: Sprite;
   private robotTextures: Texture[] = [];
 
-  private readonly params: BoulderBashParams = {
-    meta: undefined, // No metadata for now
-    round: 1,
-    difficulty: 'medium' as const,
-    bettingMode: 'standard'
-  };
-
-
-  
-  /* ─────────────────────────────── Betting ──────────────────────────────── */
-  private pointMultiplier: number = 1;
-  private timeModifier: number = 1;
-  private goodHit: boolean = false;
-  private bettingMode: string = "standard";
 
   constructor(
     private readonly app: Application,
@@ -103,25 +72,19 @@ export class BoulderBashScene extends Container implements ResizableScene {
     // Allow child sprites to receive pointer events
     this.eventMode = 'auto';
 
-    const diffStep = 0; // make easier
-    const factor = Math.pow(0.9, diffStep);
+    const factor = Math.pow(0.9, 0);
     this.perfectWindow = BoulderBashScene.BASE_PERFECT * factor;
     this.goodWindow = BoulderBashScene.BASE_GOOD * factor;
-    
-    this.beatsTarget = 32; // params.meta?.onsets?.length ?? 32;
-
-    /* Pre-processing – build accent pattern */
-    this.accentMap = this.buildAccentPattern(this.params.difficulty);
 
     /* Visuals */
     this.background = Sprite.from('boulderBashBackground');
     this.addChild(this.background);
 
-    this.tileLayer = new Container();
-    this.addChild(this.tileLayer); // tiles go below pads
+    this.boulderLayer = new Container();
+    this.addChild(this.boulderLayer); // boulders go below targets
 
-    this.padLayer = new Container();
-    this.addChild(this.padLayer);  // pads go above tiles
+    this.targetLayer = new Container();
+    this.addChild(this.targetLayer);  // targets go above boulders
     
     const robotSprite = new Sprite(Texture.from('robot-1.png'));
 
@@ -135,81 +98,65 @@ export class BoulderBashScene extends Container implements ResizableScene {
       Texture.from('robot-3.png'), // 1 life
     ];
     
-    this.createPads();
+    this.createTargets();
     this.createHUD();
     this.resize();
-    
-    /* Betting Settings */
-    this.setBettingMode();
 
     /* Bind input */
-    this.pads.forEach((pad, idx) => {
-      pad.on('pointerdown', () => this.onPadPress(idx));
+    this.targets.forEach((target, idx) => {
+      target.on('pointerdown', () => this.onTargetPress(idx));
     });
 
     /* Keyboard support */
-  window.addEventListener('keydown', this.onKeyPress);
+    window.addEventListener('keydown', this.onKeyPress);
 
-
-    /* Start playback on user click */
+    /* Start the first round */
     this.showStartOverlay();
   }
 
   /* ────────────────────────────── Setup Helpers ───────────────────────── */
-  private buildAccentPattern(difficulty: 'easy' | 'medium' | 'hard'): number[] {
+  private buildAccentPattern(): number[] {
+    this.BOULDERS_SPEED_MS = Math.max(1300 - this.currentRound * 100, 200); 
 
-    if (difficulty === 'easy') {
-      this.TILES_SPEED_MS = 1200; // 1.2 seconds to reach the pad
-    } else if (difficulty === 'medium') {
-      this.TILES_SPEED_MS = 800;
-    } else {
-      this.TILES_SPEED_MS = 500;
-    }
-
-    // generate 31 random accents to push into a pattern
+    // generate random accents for each round
     const pattern: number[] = [];
-    const accentPads = [1,2,3,4];
-    for (let beat = 0; beat < this.beatsTarget - 1; beat++) {
-      let pad: number;
+    const targets = [1,2,3,4];
+    for (let beat = 0; beat < this.beatsTarget; beat++) {
+      let target: number;
       do {
-        pad = accentPads[Math.floor(Math.random() * accentPads.length)];
-      } while (beat>0 && pad === pattern[beat-1]);
-      pattern.push(pad);
+        target = targets[Math.floor(Math.random() * targets.length)];
+      } while (beat>0 && target === pattern[beat-1]);
+      pattern.push(target);
     }
     return pattern;
   }
 
-  private createPads() {
+  private createTargets() {
     for (let i = 0; i < 4; i++) {
-      const unlit = Texture.from('target.png');
-      const lit = Texture.from('target.png'); //not using
-      this.padUnlitTextures.push(unlit);
-      this.padLitTextures.push(lit);
-  
-      const sprite = new Sprite(unlit);
+      const sprite = new Sprite(Texture.from('target.png'));
       sprite.anchor.set(0.5);
       sprite.eventMode = 'static';
       sprite.cursor = 'pointer';
-      this.pads.push(sprite);
-      this.padLayer.addChild(sprite);
+      this.targets.push(sprite);
+      this.targetLayer.addChild(sprite);
     }
   }
 
-  private updatePadsPosition() {
+  private updateTargetsPosition() {
     const { width, height } = this.app.renderer;
     const size = Math.min(width, height) * 0.7;
     const gap = 8;
-    const padSize = (size - gap * (this.pads.length - 1)) / this.pads.length;
-    const totalWidth = padSize * this.pads.length + gap * (this.pads.length - 1);
+    const targetSize = (size - gap * (this.targets.length - 1)) / this.targets.length;
+    const totalWidth = targetSize * this.targets.length + gap * (this.targets.length - 1);
   
     const startX = (width - totalWidth) / 2;
     const robotTopY = this.robotSprite.y - this.robotSprite.height;
-    const startY = robotTopY - padSize - 20; // 20px gap above robot
+    const startY = robotTopY - targetSize - 20; // 20px gap above robot
   
-    this.pads.forEach((pad, i) => {
-      pad.width = pad.height = padSize;
-      pad.x = startX + i * (padSize + gap) + padSize / 2;
-      pad.y = startY + padSize / 2;
+    this.targets.forEach((target, i) => {
+      target.width = target.height = targetSize;
+      target.x = startX + i * (targetSize + gap) + targetSize / 2;
+      target.y = startY + targetSize / 2;
     });
   }
 
@@ -312,43 +259,22 @@ export class BoulderBashScene extends Container implements ResizableScene {
     this.robotSprite.y = height - paddingBelow;
   }
   
-  private updateTilesPosition() {
+  private updateBouldersPosition() {
     const { width, height } = this.app.renderer;
-    this.scheduledTiles.forEach(entry => {
-      const pad = this.pads[entry.padId - 1];
+    this.scheduledBoulders.forEach(entry => {
+      const target = this.targets[entry.targetId - 1];
       // update where future spawns will start
-      entry.padX = pad.x;
-      entry.padY = pad.y;
-      entry.padSize = pad.width;
+      entry.targetX = target.x;
+      entry.targetY = target.y;
+      entry.targetSize = target.width;
 
       // if the sprite’s already on‐screen, resize & reposition it too
       if (entry.sprite) {
-        entry.sprite.width = pad.width;
-        entry.sprite.height = pad.height;
-        entry.sprite.x = pad.x;
+        entry.sprite.width = target.width;
+        entry.sprite.height = target.height;
+        entry.sprite.x = target.x;
       }
     });
-  }
-
-  private setBettingMode() {
-    if (this.params.bettingMode === 'speed') { // done
-      this.pointMultiplier = 2;
-    } else if (this.params.bettingMode === 'slow') { // done
-      this.pointMultiplier = 0.5;
-    } else if (this.params.bettingMode === 'double') { // done
-      this.lives = 1;
-      this.pointMultiplier = 2;
-    } else if (this.params.bettingMode === 'perfect') { // done
-      //this.roundMultiplier = 5;
-    } else if (this.params.bettingMode === 'reverse') { // ?? doesn't always make sense ie sounds
-
-    } else if (this.params.bettingMode === 'chainMulti') { // done
-      this.pointMultiplier = 1;
-    } else if (this.params.bettingMode === 'chipmunk') { // done
-      this.pointMultiplier = 3;
-    }
-
-    console.log("Mode: ", this.params.bettingMode);
   }
 
   private updateBackgroundPosition() {
@@ -367,9 +293,9 @@ export class BoulderBashScene extends Container implements ResizableScene {
   public resize() {
     this.updateBackgroundPosition();
     this.updateRobotPosition();
-    this.updatePadsPosition();
+    this.updateTargetsPosition();
     this.updateHUDPosition();
-    this.updateTilesPosition();
+    this.updateBouldersPosition();
   }
 
   /* ───────────────────────────── Gameplay Flow ─────────────────────────── */
@@ -378,18 +304,26 @@ export class BoulderBashScene extends Container implements ResizableScene {
     layer.eventMode = 'static';
   
     const bg = new Graphics();
-    bg.beginFill(0x000000, 0.4);
+    bg.beginFill(0x000000, 0.7);
     bg.drawRect(0, 0, this.app.renderer.width, this.app.renderer.height);
     bg.endFill();
     layer.addChild(bg);
   
-    const info = new Text('Watch the sequence, and tap it on beat!', {
-      fontFamily: 'Chewy', fontSize: 28, fill: 0xffffff, stroke: 0x000000, align: 'center',
+    const roundText = new Text(`Round ${this.currentRound}`, {
+      fontFamily: 'Chewy', fontSize: 48, fill: 0xffff66, stroke: 0x000000, align: 'center',
+    });
+    roundText.anchor.set(0.5);
+    roundText.x = this.app.renderer.width / 2;
+    roundText.y = this.app.renderer.height / 2 - 80;
+    layer.addChild(roundText);
+
+    const info = new Text('Destroy the boulders before they hit you!', {
+      fontFamily: 'Chewy', fontSize: 24, fill: 0xffffff, stroke: 0x000000, align: 'center',
       wordWrap: true, wordWrapWidth: this.app.renderer.width * 0.8,
     });
     info.anchor.set(0.5);
     info.x = this.app.renderer.width / 2;
-    info.y = this.app.renderer.height / 2 - 100;
+    info.y = this.app.renderer.height / 2 - 20;
     layer.addChild(info);
   
     const countdown = new Text('', {
@@ -400,7 +334,7 @@ export class BoulderBashScene extends Container implements ResizableScene {
     });
     countdown.anchor.set(0.5);
     countdown.x = this.app.renderer.width / 2;
-    countdown.y = this.app.renderer.height / 2 + 20;
+    countdown.y = this.app.renderer.height / 2 + 60;
     layer.addChild(countdown);
   
     this.addChild(layer);
@@ -415,7 +349,7 @@ export class BoulderBashScene extends Container implements ResizableScene {
       } else {
         this.removeChild(layer);
         layer.destroy({ children: true });
-        this.startGame();
+        this.startRound();
       }
     };
   
@@ -423,7 +357,10 @@ export class BoulderBashScene extends Container implements ResizableScene {
   }
   
 
-  private startGame() {
+  private startRound() {
+    // Clear previous round data
+    this.clearRoundData();
+    
     // Start game clock
     this.startPerfTime = performance.now(); 
 
@@ -431,36 +368,63 @@ export class BoulderBashScene extends Container implements ResizableScene {
     this.roundStarted = true;
 
     this.app.ticker.add(this.update, this);
-    // Generate game sequence
+    
+    // Generate new accent pattern for this round
+    this.accentMap = this.buildAccentPattern();
+    
+    // Generate game sequence for this round
     for (let beatIndex = 0; beatIndex < this.beatsTarget; beatIndex++) {
-      const padId = this.accentMap[beatIndex % this.accentMap.length];
-      if (padId === 0) continue;
+      const targetId = this.accentMap[beatIndex];
+      if (targetId === 0) continue;
       const expectedHit = this.startPerfTime + beatIndex * 600 + this.initialDelayMs; // 0.6 second intervals (100 BPM)
-      const spawnTime = expectedHit - this.TILES_SPEED_MS;
-      const pad = this.pads[padId - 1];
-      this.scheduledTiles.push({ padId, spawnTime, expectedHitTime: expectedHit, padX: pad.x, padY: pad.y, padSize: pad.width });
-      this.scheduleCue(padId, expectedHit);
+      const spawnTime = expectedHit - this.BOULDERS_SPEED_MS;
+      const target = this.targets[targetId - 1];
+      this.scheduledBoulders.push({ targetId, spawnTime, expectedHitTime: expectedHit, targetX: target.x, targetY: target.y, targetSize: target.width });
+      this.scheduleCue(targetId, expectedHit);
     }
+  }
+
+  private clearRoundData() {
+    // Clear scheduled boulders
+    this.scheduledBoulders.forEach(entry => {
+      if (entry.sprite) {
+        this.boulderLayer.removeChild(entry.sprite);
+        entry.sprite.destroy();
+      }
+    });
+    this.scheduledBoulders = [];
+    
+    // Clear active cues
+    this.activeCues.clear();
+    
+    // Reset completed cues for this round
+    this.completedCues = 0;
   }
 
   private async update(_ticker: any) {
     if (this.sceneEnded) return;
     const now = performance.now();
-    this.tileMovement(now);
+    this.boulderMovement(now);
     this.processExpiredCues(now);
 
-    // ─── Pad Rotation ───
-    this.pads.forEach((pad, i) => {
+    // ─── Target Rotation ───
+    this.targets.forEach((target, i) => {
       const direction = i % 2 === 0 ? 1 : -1; // Even: clockwise, Odd: counterclockwise
-      pad.rotation += direction * 0.005; // Adjust speed here
+      target.rotation += direction * 0.005; // Adjust speed here
     });
 
+    // Check if round is complete
     if (this.activeCues.size === 0 && !this.sceneEnded) {
-      this.sceneEnded = true;
       this.app.ticker.remove(this.update, this);
+      this.roundStarted = false;
+      
       if (this.lives > 0) {
-        this.showWinOverlay();
+        // Round completed successfully, move to next round
+        this.currentRound++;
+        this.showRoundCompleteOverlay();
       } else {
+        // Game over
+        this.sceneEnded = true;
         this.showOutOfLivesOverlay();
       }
     }
@@ -497,82 +461,76 @@ export class BoulderBashScene extends Container implements ResizableScene {
   
   
 
-  private tileMovement(now: number) {
-    for (let i = this.scheduledTiles.length - 1; i >= 0; i--) {
-      const entry = this.scheduledTiles[i];
+  private boulderMovement(now: number) {
+    for (let i = this.scheduledBoulders.length - 1; i >= 0; i--) {
+      const entry = this.scheduledBoulders[i];
       // spawn it once
       if (!entry.sprite) {
-        // grab the same unlit texture you already use for pads
+        // grab the same unlit texture you already use for targets
         const asteroidVariants = ['boulder-1.png', 'boulder-2.png', 'boulder-3.png'];
         const randomIndex = Math.floor(Math.random() * asteroidVariants.length);
         const tex = Texture.from(asteroidVariants[randomIndex]);
-        const tile = new Sprite(tex);
-        tile.width = entry.padSize;
-        tile.height = entry.padSize;
-        tile.anchor.set(0.5);
-        tile.x = entry.padX;
-        tile.y = this.TILE_SPAWN_Y;
-        tile.visible = true;
-        this.tileLayer.addChild(tile);
-        entry.sprite = tile;
+        const boulder = new Sprite(tex);
+        boulder.width = entry.targetSize;
+        boulder.height = entry.targetSize;
+        boulder.anchor.set(0.5);
+        boulder.x = entry.targetX;
+        boulder.y = this.BOULDER_SPAWN_Y;
+        boulder.visible = true;
+        this.boulderLayer.addChild(boulder);
+        entry.sprite = boulder;
       }
 
       // move it up over [0→travelTime]
       const elapsed = now - entry.spawnTime;
-      const t = Math.min(elapsed / this.TILES_SPEED_MS, 1);
-      entry.sprite!.y = this.TILE_SPAWN_Y + (entry.padY - this.TILE_SPAWN_Y) * t;
+      const t = Math.min(elapsed / this.BOULDERS_SPEED_MS, 1);
+      entry.sprite!.y = this.BOULDER_SPAWN_Y + (entry.targetY - this.BOULDER_SPAWN_Y) * t;
 
-      // once it reaches the pad, remove the graphic
+      // once it reaches the target, remove the graphic
       if (t >= 1 && entry.sprite) {
-        this.tileLayer.removeChild(entry.sprite);
+        this.boulderLayer.removeChild(entry.sprite);
         entry.sprite.visible = false;
-        this.scheduledTiles.splice(i, 1);
+        this.scheduledBoulders.splice(i, 1);
         entry.sprite.destroy();
         continue;
       }
     }
   }
 
-  private scheduleCue(padId: number, expectedHitTime: number) {
-    const idx = padId - 1; // padId is 1-4, convert to 0-3 index
+  private scheduleCue(targetId: number, expectedHitTime: number) {
+    const idx = targetId - 1; // targetId is 1-4, convert to 0-3 index
     
-    // Store the cue for hit detection (allow multiple pending cues per pad)
-    const queue = this.activeCues.get(padId) ?? [];
+    // Store the cue for hit detection (allow multiple pending cues per target)
+    const queue = this.activeCues.get(targetId) ?? [];
     queue.push(expectedHitTime);
     queue.sort((a, b) => a - b); // keep earliest first
-    this.activeCues.set(padId, queue);
+    this.activeCues.set(targetId, queue);
   }
 
   private processExpiredCues(now: number) {
-    [...this.activeCues.entries()].forEach(([padId, queue]) => {
-      const idx = padId - 1;
-      while (queue.length && now > queue[0] + this.PAD_RELEASE_MS) {
+    [...this.activeCues.entries()].forEach(([targetId, queue]) => {
+      const idx = targetId - 1;
+      while (queue.length && now > queue[0] + this.TARGET_RELEASE_MS) {
         // Missed this cue
         if (this.roundStarted) {
           this.registerMiss(idx);
         }
-        // Dim pad
-        const pad = this.pads[idx];
-        if (pad && this.padUnlitTextures[idx] && !this.sceneEnded) {
-          pad.texture = this.padUnlitTextures[idx];
-        }
         queue.shift();
       }
       if (queue.length === 0) {
-        this.activeCues.delete(padId);
+        this.activeCues.delete(targetId);
       }
     });
   }
 
-  private onPadPress(idx: number) {
+  private onTargetPress(idx: number) {
     if (!this.roundStarted) {
       this.roundStarted = true;
-      this.tapStartBeat = this.currentBeat;
     }
 
-    // Determine cue queue for this pad
-    const padId = idx + 1;
-    const queue = this.activeCues.get(padId);
+    // Determine cue queue for this target
+    const targetId = idx + 1;
+    const queue = this.activeCues.get(targetId);
     if (!queue || queue.length === 0) {
       // No pending cue – miss
       this.registerMiss(idx);
@@ -587,7 +545,6 @@ export class BoulderBashScene extends Container implements ResizableScene {
       this.registerHit(idx, 'Perfect', 2);
     } else if (absDelta <= this.goodWindow) {
       this.registerHit(idx, 'Good', 1);
-      this.goodHit = true;
     } else {
       this.registerMiss(idx);
       return;
@@ -596,14 +553,8 @@ export class BoulderBashScene extends Container implements ResizableScene {
     // Remove the processed cue
     queue.shift();
     if (queue.length === 0) {
-      this.activeCues.delete(padId);
+      this.activeCues.delete(targetId);
     }
-
-    // Dim pad shortly after hit
-    setTimeout(() => {
-      const pad = this.pads[idx];
-      pad.texture = this.padUnlitTextures[idx];
-    }, 80);
   }
 
   private onKeyPress = (e: KeyboardEvent) => {
@@ -622,12 +573,12 @@ export class BoulderBashScene extends Container implements ResizableScene {
   
     const idx = keyMap[e.key];
     if (idx !== undefined) {
-      this.onPadPress(idx);
+      this.onTargetPress(idx);
     }
   };
 
   private registerHit(idx: number, label: string, points: number) {
-    this.score += points*this.pointMultiplier;
+    this.score += points;
     this.correctHits +=1;
     this.streak += 1;
     this.maxStreak = Math.max(this.maxStreak, this.streak);
@@ -635,12 +586,6 @@ export class BoulderBashScene extends Container implements ResizableScene {
     this.updateHUD();
 
     this.completedCues += 1;
-    // Wins round
-    if (this.completedCues >= this.beatsTarget && !this.sceneEnded) {
-      this.sceneEnded = true;
-      this.app.ticker.remove(this.update, this);
-      this.showWinOverlay();
-    }
   }
 
   private registerMiss(idx: number) {
@@ -661,18 +606,18 @@ export class BoulderBashScene extends Container implements ResizableScene {
     }
   }
 
-  // Colored feedback over pads for when player hits or misses beat
+  // Colored feedback over targets for when player hits or misses beat
   private showFeedback(idx: number, text: string, color: number) {
-    const pad = this.pads[idx];
+    const target = this.targets[idx];
   
     // If it's a hit (green), show explosion sprite instead of green square
     if (color === 0x66ff66) {
       const explosion = new Sprite(Texture.from('explosion.png'));
       explosion.anchor.set(0.5);
-      explosion.width = pad.width;
-      explosion.height = pad.height;
-      explosion.x = pad.x;
-      explosion.y = pad.y;
+      explosion.width = target.width;
+      explosion.height = target.height;
+      explosion.x = target.x;
+      explosion.y = target.y;
       this.addChild(explosion);
   
       setTimeout(() => {
@@ -699,31 +644,50 @@ export class BoulderBashScene extends Container implements ResizableScene {
     this.updateHUDPosition();
   }
 
+  private showRoundCompleteOverlay() {
+    const layer = new Container();
+    layer.eventMode = 'static';
+  
+    const bg = new Graphics();
+    bg.beginFill(0x000000, 0.7);
+    bg.drawRect(0, 0, this.app.renderer.width, this.app.renderer.height);
+    bg.endFill();
+    layer.addChild(bg);
+  
+    const roundCompleteText = new Text('Round Complete!', {
+      fontFamily: 'Chewy', fontSize: 48, fill: 0x66ff66, stroke: 0x000000, align: 'center',
+    });
+    roundCompleteText.anchor.set(0.5);
+    roundCompleteText.x = this.app.renderer.width / 2;
+    roundCompleteText.y = this.app.renderer.height / 2 - 40;
+    layer.addChild(roundCompleteText);
+
+    const nextRoundText = new Text(`Next Round: ${this.currentRound}`, {
+      fontFamily: 'Chewy', fontSize: 32, fill: 0xffff66, stroke: 0x000000, align: 'center',
+    });
+    nextRoundText.anchor.set(0.5);
+    nextRoundText.x = this.app.renderer.width / 2;
+    nextRoundText.y = this.app.renderer.height / 2 + 20;
+    layer.addChild(nextRoundText);
+  
+    this.addChild(layer);
+  
+    // Show overlay for 2 seconds, then start next round
+    setTimeout(() => {
+      this.removeChild(layer);
+      layer.destroy({ children: true });
+      this.showStartOverlay();
+    }, 2000);
+  }
+
   /* ─────────────────────────── Out-of-Lives UI & Audio ─────────────────────────── */
   private async showOutOfLivesOverlay() {
-
     await updateUserRubies(this.user_id, this.score);
 
-    // Clear asteroids (tileLayer)
-    this.scheduledTiles.forEach(entry => {
-      if (entry.sprite) {
-        this.tileLayer.removeChild(entry.sprite);
-        entry.sprite.destroy();
-      }
-    });
-    this.scheduledTiles = [];
+    // Clear round data
+    this.clearRoundData();
 
-    // Clear active cues
-    this.activeCues.clear();
-
-    // Reset pad textures
-    this.pads.forEach(pad => {
-      this.removeChild(pad);
-      pad.destroy();
-    });
-    this.pads = [];
-
-    const label = new Text('You Lose!', {
+    const label = new Text(`Game Over!`, {
       fontFamily: 'Chewy',
       fontSize: 64,
       fill: 0xffffff,
@@ -731,8 +695,30 @@ export class BoulderBashScene extends Container implements ResizableScene {
     });
     label.anchor.set(0.5);
     label.x = this.app.renderer.width / 2;
-    label.y = this.app.renderer.height / 2;
+    label.y = this.app.renderer.height / 2 - 50;
     this.addChild(label);
+
+    const scoreLabel = new Text(`Final Score: ${this.score}`, {
+      fontFamily: 'Chewy',
+      fontSize: 32,
+      fill: 0xffff66,
+      stroke: 0x000000,
+    });
+    scoreLabel.anchor.set(0.5);
+    scoreLabel.x = this.app.renderer.width / 2;
+    scoreLabel.y = this.app.renderer.height / 2 + 20;
+    this.addChild(scoreLabel);
+
+    const roundsLabel = new Text(`Rounds Survived: ${this.currentRound - 1}`, {
+      fontFamily: 'Chewy',
+      fontSize: 28,
+      fill: 0xcccccc,
+      stroke: 0x000000,
+    });
+    roundsLabel.anchor.set(0.5);
+    roundsLabel.x = this.app.renderer.width / 2;
+    roundsLabel.y = this.app.renderer.height / 2 + 70;
+    this.addChild(roundsLabel);
   
     // Swap robot texture to robot-4.png and fade it out
     this.robotSprite.texture = Texture.from('robot-4.png');
@@ -752,77 +738,9 @@ export class BoulderBashScene extends Container implements ResizableScene {
   
     setTimeout(() => {
       this.onStart();
-    }, 2000);
+    }, 3000);
   }
 
-  private async showWinOverlay() {
-
-    await updateUserRubies(this.user_id, this.score);
-
-    // Clear asteroids (tileLayer)
-    this.scheduledTiles.forEach(entry => {
-      if (entry.sprite) {
-        this.tileLayer.removeChild(entry.sprite);
-        entry.sprite.destroy();
-      }
-    });
-    this.scheduledTiles = [];
-
-  // Clear active cues
-  this.activeCues.clear();
-
-  // Reset pad textures
-  this.pads.forEach(pad => {
-    this.removeChild(pad);
-    pad.destroy();
-  });
-  this.pads = []; 
-  
-    const label = new Text('You Win!', {
-      fontFamily: 'Chewy',
-      fontSize: 64,
-      fill: 0xffffff,
-      stroke: 0x000000,
-    });
-    label.anchor.set(0.5);
-    label.x = this.app.renderer.width / 2;
-    label.y = this.app.renderer.height / 2;
-    this.addChild(label);
-  
-    const duration = 2000;
-    const startY = this.robotSprite.y;
-    const startScale = this.robotSprite.scale.x;
-  
-    const startTime = performance.now();
-    const animate = (time: number) => {
-      const progress = Math.min((time - startTime) / duration, 1);
-      this.robotSprite.y = startY - progress * (this.app.renderer.height + 200); // move off screen
-      const scale = startScale * (1 - progress * 0.8); // shrink
-      this.robotSprite.scale.set(Math.max(scale, 0.1));
-  
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      }
-    };
-    requestAnimationFrame(animate);
-  
-    if (this.bettingMode === "perfect" && !this.goodHit) {
-      this.combos.push("flawlessFinish");
-    } else if (this.bettingMode === "perfect") {
-      this.combos.push("flawlessFinishFail");
-    } else if (this.bettingMode === "double") {
-      this.combos.push("doubleOrNothing");
-    }
-  
-    const currentHighScore = await getUserHighScore(this.user_id, "boulder-bash");
-    if (this.score > currentHighScore) {
-      this.combos.push("newHighScore");
-    }
-  
-    setTimeout(() => {
-      this.onStart();
-    }, 2000);
-  }
   
 
   /* ─────────────────────────── Cleanup / Exit ─────────────────────────── */
