@@ -4,6 +4,42 @@ import { MapMenuScene } from './scenes/MapMenuScene';
 import { SceneManager } from './scenes/SceneManager';
 import { initAnonymousUser, updateGamePlayCount } from "./firebase"; 
 import { getGameById } from './data/games';
+import { TelegramUserData } from './telegram';
+
+// Extract Telegram user data from URL parameters
+function extractTelegramUserData(): TelegramUserData | null {
+  const urlParams = new URLSearchParams(window.location.search);
+  
+  // Telegram sends user data in the URL when launching games
+  const userStr = urlParams.get('user');
+  if (!userStr) return null;
+  
+  try {
+    const userData = JSON.parse(decodeURIComponent(userStr));
+    return userData;
+  } catch (error) {
+    console.error('Failed to parse Telegram user data:', error);
+    return null;
+  }
+}
+
+// Initialize user with Telegram data
+async function initTelegramUser(telegramData: TelegramUserData): Promise<string> {
+  // Use Telegram user ID as the primary identifier
+  const userId = `telegram_${telegramData.id}`;
+  
+  // Store additional user data in localStorage for this session
+  localStorage.setItem('telegram_user_data', JSON.stringify(telegramData));
+  
+  console.log("Initialized Telegram user:", {
+    id: telegramData.id,
+    name: telegramData.first_name,
+    username: telegramData.username,
+    language: telegramData.language_code
+  });
+  
+  return userId;
+}
 
 async function bootstrap() {
   const container = document.getElementById('game-container');
@@ -21,9 +57,18 @@ async function bootstrap() {
 
   container.appendChild(app.view);
 
-  // get the user ID, or create a new anonymous user
-  const user_id = await initAnonymousUser();
-  console.log("Logged in as:", user_id);
+  // Extract Telegram user data from URL parameters
+  const telegramData = extractTelegramUserData();
+  let user_id: string;
+  
+  if (telegramData) {
+    console.log("Telegram user data:", telegramData);
+    user_id = await initTelegramUser(telegramData);
+  } else {
+    // Fallback to anonymous user for testing/development
+    user_id = await initAnonymousUser();
+    console.log("Logged in as anonymous user:", user_id);
+  }
 
   // Load assets
   await Assets.load([
